@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { InteractionService } from './interaction.service';
 import { CreateInteractionDto } from './dto/create-interaction.dto';
 import { UpdateInteractionDto } from './dto/update-interaction.dto';
@@ -16,11 +24,16 @@ export class InteractionController {
   //   return this.interactionService.create(createInteractionDto);
   // }
 
-  
   @Post('/toggle')
   @RequirePermissions(PERMISSIONS.INTERACTION_REACT)
-  toggle(@Body() createInteractionDto: CreateInteractionDto, @CurrentUser() user: AuthUser) {
-    return this.interactionService.toggleInteraction(user.id, createInteractionDto);
+  toggle(
+    @Body() createInteractionDto: CreateInteractionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.interactionService.toggleInteraction(
+      user.id,
+      createInteractionDto,
+    );
   }
 
   @Get()
@@ -34,7 +47,10 @@ export class InteractionController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateInteractionDto: UpdateInteractionDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateInteractionDto: UpdateInteractionDto,
+  ) {
     return this.interactionService.update(+id, updateInteractionDto);
   }
 

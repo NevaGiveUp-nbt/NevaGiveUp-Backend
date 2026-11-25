@@ -4,10 +4,9 @@ import { PrismaModule } from '@/prisma/prisma.module';
 import { YoutubeModule } from '@/youtube/youtube.module';
 import { StorageModule } from '@/storage/storage.module';
 
-
 @Module({
-    imports: [PrismaModule, YoutubeModule, StorageModule],
-    providers: [CourseValidationService],
-    exports: [CourseValidationService],
+  imports: [PrismaModule, YoutubeModule, StorageModule],
+  providers: [CourseValidationService],
+  exports: [CourseValidationService],
 })
-export class CourseValidationModule { }
+export class CourseValidationModule {}

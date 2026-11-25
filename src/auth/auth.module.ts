@@ -12,20 +12,22 @@ import { JwtStrategy } from './passport/jwt.strategy';
   imports: [
     UsersModule,
     JwtModule.registerAsync({
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         global: true,
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_ACCESS_TOKEN_EXPIRES_IN') as any,
+          expiresIn: configService.get<string>(
+            'JWT_ACCESS_TOKEN_EXPIRES_IN',
+          ) as any,
         },
       }),
       inject: [ConfigService],
     }),
-    PassportModule
+    PassportModule,
   ],
 
   controllers: [AuthController],
   providers: [AuthService, LocalStrategy, JwtStrategy],
   exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

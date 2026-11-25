@@ -1,7 +1,21 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCategoryDto } from './dto/update-category.dto';
+import {
+  BulkDeleteDto,
+  BulkStatusDto,
+  ChangeStatusDto,
+  UpdateCategoryDto,
+} from './dto/update-category.dto';
 import { PERMISSIONS } from '@/authorization/constants/permission';
 import { ResponseMessage } from '@/decorator/responseMessage.decorator';
 import { RequirePermissions } from '@/decorator/permissions.decorator';
@@ -34,7 +48,10 @@ export class CategoriesController {
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.CATEGORY_UPDATE)
   @ResponseMessage('Cập nhật danh mục thành công')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateCategoryDto: UpdateCategoryDto) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateCategoryDto: UpdateCategoryDto,
+  ) {
     return this.categoriesService.update(id, updateCategoryDto);
   }
 

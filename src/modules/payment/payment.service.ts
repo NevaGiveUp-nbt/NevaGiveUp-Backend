@@ -1,9 +1,28 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { EnrollmentStatus, Order, OrderStatus, PaymentMethod, PaymentProvider, PaymentStatus, Prisma } from '@prisma/client';
-import { generatePaymentCode, generateQrCodeUrl, parseSePayDate, verifySePaySignature } from '@/helpers/Payment.util';
+import {
+  EnrollmentStatus,
+  Order,
+  OrderStatus,
+  PaymentMethod,
+  PaymentProvider,
+  PaymentStatus,
+  Prisma,
+} from '@prisma/client';
+import {
+  generatePaymentCode,
+  generateQrCodeUrl,
+  parseSePayDate,
+  verifySePaySignature,
+} from '@/helpers/Payment.util';
 import { ConfigService } from '@nestjs/config';
 import { SePayWebhookDto } from './dto/sepay-webhook.dto';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -12,13 +31,12 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
 
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  constructor(private readonly prisma: PrismaService, private readonly configService: ConfigService) { }
-
-  async createPayment(
-    userId: string,
-    dto: CreatePaymentDto,
-  ) {
+  async createPayment(userId: string, dto: CreatePaymentDto) {
     const order = await this.prisma.order.findFirst({
       where: {
         id: dto.orderId,
@@ -31,15 +49,10 @@ export class PaymentService {
     }
 
     if (order.status !== OrderStatus.PENDING) {
-      throw new ConflictException(
-        'Đơn hàng không còn tồn tại',
-      );
+      throw new ConflictException('Đơn hàng không còn tồn tại');
     }
 
-    if (
-      order.expiresAt &&
-      order.expiresAt <= new Date()
-    ) {
+    if (order.expiresAt && order.expiresAt <= new Date()) {
       // Cập nhật order sang EXPIRED nếu chưa được cập nhật
       await this.prisma.order.updateMany({
         where: {
@@ -53,21 +66,17 @@ export class PaymentService {
       throw new ConflictException('Đơn hàng đã hết hạn');
     }
 
-    const existingPayment =
-      await this.prisma.payment.findFirst({
-        where: {
-          orderId: order.id,
-          status: {
-            in: [
-              PaymentStatus.PENDING,
-              PaymentStatus.PROCESSING,
-            ],
-          },
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        orderId: order.id,
+        status: {
+          in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING],
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
 
     if (existingPayment) {
       // Nếu payment đã hết hạn, đánh dấu EXPIRED và tạo payment mới
@@ -84,19 +93,14 @@ export class PaymentService {
       }
     }
 
-    const paymentCode =
-      await generatePaymentCode(this.prisma);
+    const paymentCode = await generatePaymentCode(this.prisma);
 
     const config = {
       account: this.configService.getOrThrow<string>('SEPAY_BANK_ACCOUNT'),
       bank: this.configService.getOrThrow<string>('SEPAY_BANK_CODE'),
-    }
+    };
 
-    const qrCodeUrl = generateQrCodeUrl(
-      paymentCode,
-      order.totalAmount,
-      config,
-    );
+    const qrCodeUrl = generateQrCodeUrl(paymentCode, order.totalAmount, config);
 
     return this.prisma.payment.create({
       data: {
@@ -113,27 +117,29 @@ export class PaymentService {
     });
   }
 
-  async handleSePayWebhook(data: SePayWebhookDto, rawBody?: Buffer, signature?: string, timestamp?: string,) {
-    this.logger.log(`[Webhook] Received SePay webhook: id=${data.id}, code=${data.code}, transferType=${data.transferType}, amount=${data.transferAmount}`);
-    this.logger.log(`[Webhook] Full payload: ${JSON.stringify(data)}`);
-    this.logger.log(`[Webhook] Headers - signature: ${signature ? 'present' : 'MISSING'}, timestamp: ${timestamp ? timestamp : 'MISSING'}, rawBody: ${rawBody ? 'present' : 'MISSING'}`);
-
-    const secret = this.configService.getOrThrow<string>('SEPAY_WEBHOOK_SECRET');
+  async handleSePayWebhook(
+    data: SePayWebhookDto,
+    rawBody?: Buffer,
+    signature?: string,
+    timestamp?: string,
+  ) {
+    const secret = this.configService.getOrThrow<string>(
+      'SEPAY_WEBHOOK_SECRET',
+    );
 
     verifySePaySignature(rawBody, signature, timestamp, secret);
-    this.logger.log(`[Webhook] Signature verification PASSED`);
 
     if (data.transferType !== 'in') {
-      this.logger.warn(`[Webhook] SKIP: transferType is '${data.transferType}', not 'in'`);
       return;
     }
     if (!data.code) {
-      this.logger.warn(`[Webhook] SKIP: code is empty/null → SePay không extract được mã thanh toán từ nội dung chuyển khoản. Content: "${data.content}"`);
+      this.logger.warn(
+        `[SePay] Missing payment code: transactionId=${data.id}`,
+      );
       return;
     }
 
     // Tìm payment theo Payment code
-    this.logger.log(`[Webhook] Looking up payment with paymentCode: "${data.code}"`);
     const payment = await this.prisma.payment.findUnique({
       where: {
         paymentCode: data.code,
@@ -141,65 +147,71 @@ export class PaymentService {
       include: {
         order: {
           include: {
-            orderItems: true
-          }
-        }
-      }
-    })
+            orderItems: true,
+          },
+        },
+      },
+    });
 
     if (!payment) {
-      this.logger.warn(`[Webhook] SKIP: Payment NOT FOUND for paymentCode="${data.code}"`);
+      this.logger.warn(`[SePay] Payment not found: transactionId=${data.id}`);
       return;
     }
 
-    this.logger.log(`[Webhook] Found payment: id=${payment.id}, status=${payment.status}, amount=${payment.amount}, orderId=${payment.orderId}`);
-    this.logger.log(`[Webhook] Order: status=${payment.order.status}, expiresAt=${payment.order.expiresAt}`);
-
     //hien tai chi ho tro sepay provider
     if (payment.provider !== PaymentProvider.SEPAY) {
-      this.logger.warn(`[Webhook] SKIP: provider is '${payment.provider}', not SEPAY`);
+      this.logger.warn(
+        `[SePay] Unexpected payment provider: transactionId=${data.id}, paymentId=${payment.id}`,
+      );
       return;
     }
 
     //da mua roi
     if (payment.status === PaymentStatus.PAID) {
-      this.logger.warn(`[Webhook] SKIP: Payment already PAID`);
       return;
     }
 
     // Payment đã bị đánh dấu FAILED (ví dụ: số tiền không khớp lần trước)
     if (payment.status === PaymentStatus.FAILED) {
-      this.logger.warn(`[Webhook] SKIP: Payment already FAILED`);
       return;
     }
 
     // Dùng transactionDate (thời điểm user thực sự chuyển tiền) để quyết định
     // Nếu user chuyển tiền TRƯỚC lúc hết hạn → chấp nhận, dù webhook đến muộn
     const txDate = parseSePayDate(data.transactionDate);
-    this.logger.log(`[Webhook] Transaction date: ${txDate.toISOString()}`);
+    if (Number.isNaN(txDate.getTime())) {
+      throw new BadRequestException('Invalid SePay transaction date');
+    }
 
     // Check payment expired — so sánh với thời điểm giao dịch thực tế
     if (payment.expiresAt && payment.expiresAt <= new Date()) {
       if (txDate > payment.expiresAt) {
-        this.logger.warn(`[Webhook] SKIP: Payment EXPIRED at ${payment.expiresAt.toISOString()}, user chuyển tiền SAU hạn (txDate=${txDate.toISOString()})`);
+        this.logger.warn(
+          `[SePay] Transfer after payment expiry: transactionId=${data.id}, paymentId=${payment.id}`,
+        );
         return;
       }
-      this.logger.warn(`[Webhook] ⚠️ Payment expired nhưng user đã chuyển tiền TRƯỚC hạn (txDate=${txDate.toISOString()} ≤ expiresAt=${payment.expiresAt.toISOString()}) → tiếp tục xử lý`);
     }
 
     // Kiem tra order status — cho phép EXPIRED nếu user đã thanh toán trước hạn
-    const validOrderStatuses: OrderStatus[] = [OrderStatus.PENDING, OrderStatus.EXPIRED];
+    const validOrderStatuses: OrderStatus[] = [
+      OrderStatus.PENDING,
+      OrderStatus.EXPIRED,
+    ];
     if (!validOrderStatuses.includes(payment.order.status)) {
-      this.logger.warn(`[Webhook] SKIP: Order status '${payment.order.status}' không hợp lệ (chỉ chấp nhận PENDING hoặc EXPIRED)`);
+      this.logger.warn(
+        `[SePay] Order cannot accept payment: transactionId=${data.id}, orderId=${payment.orderId}, status=${payment.order.status}`,
+      );
       return;
     }
 
     if (payment.order.expiresAt && payment.order.expiresAt <= new Date()) {
       if (txDate > payment.order.expiresAt) {
-        this.logger.warn(`[Webhook] SKIP: Order expired at ${payment.order.expiresAt.toISOString()}, user chuyển tiền SAU hạn (txDate=${txDate.toISOString()})`);
+        this.logger.warn(
+          `[SePay] Transfer after order expiry: transactionId=${data.id}, orderId=${payment.orderId}`,
+        );
         return;
       }
-      this.logger.warn(`[Webhook] ⚠️ Order expired nhưng user đã chuyển tiền TRƯỚC hạn (txDate=${txDate.toISOString()} ≤ expiresAt=${payment.order.expiresAt.toISOString()}) → tiếp tục xử lý`);
     }
     //kiem tra transaction payment exist
 
@@ -207,13 +219,12 @@ export class PaymentService {
       where: {
         provider_providerTransactionId: {
           provider: PaymentProvider.SEPAY,
-          providerTransactionId: String(data.id)
-        }
-      }
-    })
+          providerTransactionId: String(data.id),
+        },
+      },
+    });
 
     if (transactionExist) {
-      this.logger.warn(`[Webhook] SKIP: Transaction already exists for providerTransactionId=${data.id}`);
       return;
     }
 
@@ -221,7 +232,9 @@ export class PaymentService {
     const transferAmount = new Prisma.Decimal(data.transferAmount);
 
     if (!transferAmount.equals(payment.amount)) {
-      this.logger.warn(`[Webhook] Số tiền không khớp: nhận ${transferAmount}, mong muốn ${payment.amount} cho thanh toán ${payment.paymentCode}`);
+      this.logger.warn(
+        `[SePay] Amount mismatch: transactionId=${data.id}, paymentId=${payment.id}, received=${transferAmount.toString()}, expected=${payment.amount.toString()}`,
+      );
       // Ghi nhận transaction nhưng đánh dấu payment là FAILED
       await this.prisma.$transaction(async (tx) => {
         await tx.paymentTransaction.create({
@@ -247,13 +260,11 @@ export class PaymentService {
             status: PaymentStatus.FAILED,
           },
         });
-      })
+      });
       return; // Trả 200 cho SePay để không retry
     }
 
-    this.logger.log(`[Webhook] All checks passed, processing payment...`);
     try {
-
       await this.prisma.$transaction(async (tx) => {
         try {
           await tx.paymentTransaction.create({
@@ -261,13 +272,10 @@ export class PaymentService {
               paymentId: payment.id,
               provider: PaymentProvider.SEPAY,
               providerTransactionId: String(data.id),
-              referenceCode:
-                data.referenceCode ?? null,
+              referenceCode: data.referenceCode ?? null,
               amount: transferAmount,
               transferType: data.transferType,
-              transactionDate: parseSePayDate(
-                data.transactionDate,
-              ),
+              transactionDate: parseSePayDate(data.transactionDate),
               content: data.content,
               rawPayload: data as unknown as Prisma.InputJsonValue,
               processedAt: new Date(),
@@ -292,19 +300,15 @@ export class PaymentService {
           where: {
             id: payment.id,
             status: {
-              in: [
-                PaymentStatus.PENDING,
-                PaymentStatus.PROCESSING,
-              ],
+              in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING],
             },
           },
           data: {
             status: PaymentStatus.PAID,
-            paidAt: new Date()
-          }
-        })
+            paidAt: new Date(),
+          },
+        });
         if (updatedPayment.count === 0) {
-          this.logger.warn(`[Webhook] SKIP: Payment was already updated (race condition)`);
           return;
         }
 
@@ -319,18 +323,19 @@ export class PaymentService {
           data: {
             status: OrderStatus.PAID,
             paidAt: new Date(),
-          }
-        })
+          },
+        });
 
-         // Đơn hàng đã được xử lý bởi một payment khác
+        // Đơn hàng đã được xử lý bởi một payment khác
         if (updatedOrder.count === 0) {
-          this.logger.warn(`[Webhook] SKIP: Order ${payment.orderId} was already PAID (possible duplicate payment for same order)`);
+          this.logger.warn(
+            `[SePay] Order status changed during payment: transactionId=${data.id}, orderId=${payment.orderId}`,
+          );
           return;
         }
 
         //cập nhật trạng thái order item và tạo enrollment
         for (const item of payment.order.orderItems) {
-
           // Kiểm tra enrollment đã tồn tại chưa trước khi upsert
           const existingEnrollment = await tx.enrollment.findUnique({
             where: {
@@ -374,10 +379,8 @@ export class PaymentService {
             });
           }
         }
-        this.logger.log('[Webhook] ✅ Order and enrollments updated successfully');
-      })
-    }
-    catch (error: any) {
+      });
+    } catch (error: any) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -389,14 +392,10 @@ export class PaymentService {
 
       throw error;
     }
-    this.logger.log('[Webhook] ✅ Webhook handled successfully');
-
   }
 
-
-
   findAll() {
-    return "123";
+    return '123';
   }
 
   async findOne(userId: string, orderNumber: string) {
@@ -439,14 +438,14 @@ export class PaymentService {
     const bankInfo = {
       account: this.configService.getOrThrow<string>('SEPAY_BANK_ACCOUNT'),
       bank: this.configService.getOrThrow<string>('SEPAY_BANK_CODE'),
-    }
+    };
 
     return {
       ...payment,
       bank: {
         accountNumber: bankInfo.account,
         bankName: bankInfo.bank,
-      }
+      },
     };
   }
 
@@ -503,16 +502,12 @@ export class PaymentService {
           where: {
             orderId: order.id,
             status: {
-              in: [
-                PaymentStatus.PENDING,
-                PaymentStatus.PROCESSING,
-              ],
+              in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING],
             },
           },
           data: {
             status: PaymentStatus.EXPIRED,
             failureReason: 'Order expired',
-
           },
         });
       });

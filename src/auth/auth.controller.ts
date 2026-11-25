@@ -1,6 +1,24 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AdminLoginDto, CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from './dto/create-auth.dto';
+import {
+  AdminLoginDto,
+  CreateAuthDto,
+  ResendOtpDto,
+  ResetPasswordDto,
+  SendForgotPasswordOTPDto,
+  VerifyActivateOtpDto,
+  VerifyResetPasswordOtpDto,
+} from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { LocalAuthGuard } from './passport/local-auth.guard';
@@ -12,10 +30,9 @@ import { LogoutDto } from './dto/logout.dto';
 import { CurrentUser } from '@/decorator/current-user.decorator';
 import type { AuthUser } from './interfaces/auth-user.interface';
 
-
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @UseGuards(LocalAuthGuard)
   @ResponseMessage('Đăng nhập thành công')
@@ -63,15 +80,20 @@ export class AuthController {
   @Public()
   @ResponseMessage('Gửi OTP đặt lại mật khẩu thành công')
   @Post('send-reset-password-otp')
-  async handleSendResetPasswordOtp(@Body() sendForgotPasswordOTPDto: SendForgotPasswordOTPDto) {
-    return await this.authService.sendResetPasswordOtp(sendForgotPasswordOTPDto);
+  async handleSendResetPasswordOtp(
+    @Body() sendForgotPasswordOTPDto: SendForgotPasswordOTPDto,
+  ) {
+    return await this.authService.sendResetPasswordOtp(
+      sendForgotPasswordOTPDto,
+    );
   }
-
 
   @Public()
   @ResponseMessage('Xác thực OTP đặt lại mật khẩu thành công')
   @Post('verify-reset-password-otp')
-  async handleVerifyResetOtp(@Body() verifyResetPasswordOtpDto: VerifyResetPasswordOtpDto) {
+  async handleVerifyResetOtp(
+    @Body() verifyResetPasswordOtpDto: VerifyResetPasswordOtpDto,
+  ) {
     return await this.authService.verifyResetOtp(verifyResetPasswordOtpDto);
   }
 
@@ -100,5 +122,4 @@ export class AuthController {
   getMe(@CurrentUser() user: AuthUser) {
     return this.authService.getMe(user.id);
   }
-
 }

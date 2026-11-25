@@ -9,6 +9,6 @@ import { CleanupModule } from '@/cleanup/cleanup.module';
   imports: [PrismaModule, AuthorizationModule, CleanupModule],
   controllers: [SectionsController],
   providers: [SectionsService],
-  exports: [SectionsService]
+  exports: [SectionsService],
 })
-export class SectionsModule { }
+export class SectionsModule {}

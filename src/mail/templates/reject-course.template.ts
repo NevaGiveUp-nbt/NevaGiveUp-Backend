@@ -1,10 +1,10 @@
 export const getCourseRejectionEmailTemplate = (
-instructorName: string,
-courseTitle: string,
-rejectionReason: string,
-editCourseUrl: string
+  instructorName: string,
+  courseTitle: string,
+  rejectionReason: string,
+  editCourseUrl: string,
 ): string => {
-return `
+  return `
 
         <!-- Main Content Container -->
         <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation" style="max-width:600px; width:100%; color:#1a1a1a; background-color:#ffffff; border-radius:8px; border:1px solid #eaeaea; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); overflow:hidden;">
@@ -86,4 +86,3 @@ return `
 
 `;
 };
-

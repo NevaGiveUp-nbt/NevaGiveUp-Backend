@@ -10,9 +10,16 @@ import { VideoUploadModule } from '@/video/video-upload.module';
 import { CleanupModule } from '@/cleanup/cleanup.module';
 
 @Module({
-  imports: [PrismaModule, YoutubeModule, AuthorizationModule, StorageModule, VideoUploadModule, CleanupModule],
+  imports: [
+    PrismaModule,
+    YoutubeModule,
+    AuthorizationModule,
+    StorageModule,
+    VideoUploadModule,
+    CleanupModule,
+  ],
   controllers: [LessonsController],
   providers: [LessonsService, LessonAccessService],
-  exports: [LessonsService, LessonAccessService,]
+  exports: [LessonsService, LessonAccessService],
 })
-export class LessonsModule { }
+export class LessonsModule {}

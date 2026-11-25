@@ -8,6 +8,6 @@ import { AuthorizationModule } from '@/authorization/authorization.module';
   imports: [PrismaModule, AuthorizationModule],
   controllers: [RolesController],
   providers: [RolesService],
-  exports: [RolesService]
+  exports: [RolesService],
 })
-export class RolesModule { }
+export class RolesModule {}

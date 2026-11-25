@@ -1,12 +1,22 @@
-import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
-import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateCategoryDto } from './dto/update-category.dto';
+import {
+  BulkDeleteDto,
+  BulkStatusDto,
+  ChangeStatusDto,
+  UpdateCategoryDto,
+} from './dto/update-category.dto';
 import { generateSlug } from '@/helpers/slug.util';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
     if (!createCategoryDto.name) {
@@ -16,7 +26,7 @@ export class CategoriesService {
     let slug = generateSlug(createCategoryDto.name);
 
     const existingCategory = await this.prisma.category.findUnique({
-      where: { slug }
+      where: { slug },
     });
 
     if (existingCategory) {
@@ -26,7 +36,7 @@ export class CategoriesService {
     if (createCategoryDto.parentId) {
       const parent = await this.prisma.category.findUnique({
         where: {
-          id: createCategoryDto.parentId
+          id: createCategoryDto.parentId,
         },
         select: {
           id: true,
@@ -41,9 +51,7 @@ export class CategoriesService {
         throw new BadRequestException('Danh mục cha không hoạt động');
       }
       if (parent.parentId !== null) {
-        throw new BadRequestException(
-          'Chỉ cho phép danh mục tối đa 2 cấp',
-        );
+        throw new BadRequestException('Chỉ cho phép danh mục tối đa 2 cấp');
       }
     }
 
@@ -74,9 +82,13 @@ export class CategoriesService {
       },
     });
     const total = categories.length;
-    const countActiveCategories = categories.filter(cat => cat.status === true).length;
-    const countInactiveCategories = categories.filter(cat => cat.status === false).length;
-    //đệ quy để tạo cây 
+    const countActiveCategories = categories.filter(
+      (cat) => cat.status === true,
+    ).length;
+    const countInactiveCategories = categories.filter(
+      (cat) => cat.status === false,
+    ).length;
+    //đệ quy để tạo cây
     const buildTree = (parentId: number | null = null): any[] => {
       return categories
         .filter((cat) => cat.parentId === parentId)
@@ -91,7 +103,7 @@ export class CategoriesService {
       count: {
         total: total,
         active: countActiveCategories,
-        inactive: countInactiveCategories
+        inactive: countInactiveCategories,
       },
     };
   }
@@ -119,32 +131,36 @@ export class CategoriesService {
         _count: {
           select: {
             courses: true,
-            children: true
-          }
-        }
-      }
+            children: true,
+          },
+        },
+      },
     });
 
     if (!category) {
       throw new NotFoundException('Không tìm thấy danh mục');
     }
 
-
     let slug = category.slug;
 
     if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
       slug = generateSlug(updateCategoryDto.name);
       const existingCategory = await this.prisma.category.findUnique({
-        where: { slug }
+        where: { slug },
       });
       if (existingCategory && existingCategory.id !== id) {
         slug = `${slug}-${Date.now().toString(36)}`;
       }
     }
 
-    if (updateCategoryDto.parentId !== undefined && updateCategoryDto.parentId !== category.parentId) {
+    if (
+      updateCategoryDto.parentId !== undefined &&
+      updateCategoryDto.parentId !== category.parentId
+    ) {
       if (updateCategoryDto.parentId === id) {
-        throw new BadRequestException('Danh mục không thể là danh mục cha của chính nó');
+        throw new BadRequestException(
+          'Danh mục không thể là danh mục cha của chính nó',
+        );
       }
       if (updateCategoryDto.parentId !== null) {
         const parent = await this.prisma.category.findUnique({
@@ -152,7 +168,7 @@ export class CategoriesService {
           select: {
             id: true,
             parentId: true,
-            status: true
+            status: true,
           },
         });
         if (!parent) {
@@ -162,19 +178,15 @@ export class CategoriesService {
           throw new BadRequestException('Danh mục cha không hoạt động');
         }
         if (parent.parentId !== null) {
-          throw new BadRequestException(
-            'Chỉ cho phép danh mục tối đa 2 cấp',
-          );
+          throw new BadRequestException('Chỉ cho phép danh mục tối đa 2 cấp');
         }
         if (category._count.children > 0) {
-            throw new BadRequestException(
-                'Danh mục đang chứa danh mục con nên không thể chuyển thành danh mục con',
-            );
+          throw new BadRequestException(
+            'Danh mục đang chứa danh mục con nên không thể chuyển thành danh mục con',
+          );
         }
       }
-
     }
-
 
     return this.prisma.category.update({
       where: { id },
@@ -190,7 +202,7 @@ export class CategoriesService {
       where: { id },
       include: {
         children: true,
-      }
+      },
     });
 
     if (!category) {
@@ -198,21 +210,25 @@ export class CategoriesService {
     }
 
     if (category.children && category.children.length > 0) {
-      throw new BadRequestException('Không thể xóa danh mục đang chứa danh mục con');
+      throw new BadRequestException(
+        'Không thể xóa danh mục đang chứa danh mục con',
+      );
     }
 
     const courseCount = await this.prisma.course.count({
       where: {
         categoryId: id,
       },
-    })
+    });
 
     if (courseCount > 0) {
-      throw new BadRequestException('Không thể xóa danh mục đang được sử dụng trong khóa học');
+      throw new BadRequestException(
+        'Không thể xóa danh mục đang được sử dụng trong khóa học',
+      );
     }
 
     return this.prisma.category.delete({
-      where: { id }
+      where: { id },
     });
   }
 
@@ -224,16 +240,14 @@ export class CategoriesService {
         include: {
           _count: {
             select: {
-              courses: true
-            }
-          }
-        }
+              courses: true,
+            },
+          },
+        },
       });
 
       if (!category) {
-        throw new NotFoundException(
-          'Không tìm thấy category',
-        );
+        throw new NotFoundException('Không tìm thấy category');
       }
 
       if (category.status === status) {
@@ -241,13 +255,12 @@ export class CategoriesService {
       }
 
       if (!status) {
-        const activeChildren =
-          await this.prisma.category.count({
-            where: {
-              parentId: id,
-              status: true,
-            },
-          });
+        const activeChildren = await this.prisma.category.count({
+          where: {
+            parentId: id,
+            status: true,
+          },
+        });
 
         if (activeChildren > 0) {
           throw new BadRequestException(
@@ -256,7 +269,9 @@ export class CategoriesService {
         }
       }
       if (status === false && category._count.courses > 0) {
-        throw new BadRequestException('Không thể thay đổi trạng thái danh mục này vì đang được sử dụng trong khóa học');
+        throw new BadRequestException(
+          'Không thể thay đổi trạng thái danh mục này vì đang được sử dụng trong khóa học',
+        );
       }
 
       return this.prisma.category.update({
@@ -265,12 +280,16 @@ export class CategoriesService {
           status: status,
         },
       });
-    }
-    catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
-      throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi thay đổi trạng thái',
+      );
     }
   }
 
@@ -280,18 +299,18 @@ export class CategoriesService {
       const category = await this.prisma.category.findMany({
         where: {
           id: {
-            in: ids
-          }
+            in: ids,
+          },
         },
         include: {
           _count: {
             select: {
               courses: true,
-              children: true
-            }
-          }
-        }
-      })
+              children: true,
+            },
+          },
+        },
+      });
       if (category.length === 0) {
         throw new NotFoundException('Không tìm thấy danh mục nào để cập nhật');
       }
@@ -300,33 +319,41 @@ export class CategoriesService {
         return { count: 0 };
       }
       if (status === false) {
-        const categoriesInUse = categoryToUpdate.filter((t: any) => t._count.courses > 0);
+        const categoriesInUse = categoryToUpdate.filter(
+          (t: any) => t._count.courses > 0,
+        );
         if (categoriesInUse.length > 0) {
           const names = categoriesInUse.map((t: any) => t.name).join(', ');
-          throw new BadRequestException(`Không thể tắt các danh mục đang được sử dụng: ${names}`);
+          throw new BadRequestException(
+            `Không thể tắt các danh mục đang được sử dụng: ${names}`,
+          );
         }
-
       }
 
       const updateIds = categoryToUpdate.map((t: any) => t.id);
       const result = await this.prisma.category.updateMany({
         where: {
           id: {
-            in: updateIds
-          }
+            in: updateIds,
+          },
         },
         data: {
-          status: status
-        }
-      })
+          status: status,
+        },
+      });
       return {
-        count: result.count
-      }
+        count: result.count,
+      };
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
-      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái danh mục');
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi cập nhật trạng thái danh mục',
+      );
     }
   }
 
@@ -336,45 +363,58 @@ export class CategoriesService {
       const categories = await this.prisma.category.findMany({
         where: {
           id: {
-            in: ids
-          }
+            in: ids,
+          },
         },
         include: {
           _count: {
             select: {
               courses: true,
               children: true,
-            }
-          }
-        }
-      })
+            },
+          },
+        },
+      });
       if (categories.length === 0) {
         throw new NotFoundException('Không tìm thấy danh mục nào để xoá');
       }
 
-      const categoriesInUse = categories.filter((category: any) => category._count.courses > 0);
+      const categoriesInUse = categories.filter(
+        (category: any) => category._count.courses > 0,
+      );
       if (categoriesInUse.length > 0) {
         const names = categoriesInUse.map((c: any) => c.name).join(', ');
-        throw new BadRequestException(`Không thể xóa các danh mục đang được sử dụng: ${names}`);
+        throw new BadRequestException(
+          `Không thể xóa các danh mục đang được sử dụng: ${names}`,
+        );
       }
-      const categoriesWithSubcategories = categories.filter((t: any) => t._count.children > 0);
+      const categoriesWithSubcategories = categories.filter(
+        (t: any) => t._count.children > 0,
+      );
       if (categoriesWithSubcategories.length > 0) {
-        const names = categoriesWithSubcategories.map((t: any) => t.name).join(', ');
-        throw new BadRequestException(`Không thể xóa các danh mục đang chứa danh mục con: ${names}`);
+        const names = categoriesWithSubcategories
+          .map((t: any) => t.name)
+          .join(', ');
+        throw new BadRequestException(
+          `Không thể xóa các danh mục đang chứa danh mục con: ${names}`,
+        );
       }
 
       const result = await this.prisma.category.deleteMany({
         where: {
           id: {
-            in: ids
-          }
-        }
-      })
+            in: ids,
+          },
+        },
+      });
       return {
-        count: result.count
-      }
+        count: result.count,
+      };
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
         throw error;
       }
       throw new InternalServerErrorException('Có lỗi xảy ra khi xóa danh mục');

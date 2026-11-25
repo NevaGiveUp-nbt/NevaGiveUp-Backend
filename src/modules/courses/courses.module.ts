@@ -7,9 +7,14 @@ import { CleanupModule } from '@/cleanup/cleanup.module';
 import { CourseValidationModule } from '@/course-validation/course-validation.module';
 
 @Module({
-  imports: [PrismaModule, AuthorizationModule, CleanupModule, CourseValidationModule],
+  imports: [
+    PrismaModule,
+    AuthorizationModule,
+    CleanupModule,
+    CourseValidationModule,
+  ],
   controllers: [CoursesController],
   providers: [CoursesService],
-  exports: [CoursesService]
+  exports: [CoursesService],
 })
-export class CoursesModule { }
+export class CoursesModule {}

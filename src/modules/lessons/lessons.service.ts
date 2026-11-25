@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -16,14 +22,20 @@ import { AuthorizationService } from '@/authorization/authorization.service';
 
 @Injectable()
 export class LessonsService {
-  constructor(private prisma: PrismaService,
+  constructor(
+    private prisma: PrismaService,
     private readonly lessonAccessService: LessonAccessService,
     private readonly storageService: StorageService,
     private readonly videoUploadService: VideoUploadService,
     private readonly authorizationService: AuthorizationService,
-    private readonly cleanupService: CleanupService) { }
+    private readonly cleanupService: CleanupService,
+  ) {}
 
-  async uploadResources(userId: string, lessonId: number, files: Express.Multer.File[]) {
+  async uploadResources(
+    userId: string,
+    lessonId: number,
+    files: Express.Multer.File[],
+  ) {
     //validate mảng files gửi xuống
     if (!files || files.length === 0) {
       throw new BadRequestException('Phải có ít nhất 1 file');
@@ -47,8 +59,8 @@ export class LessonsService {
               select: {
                 instructorId: true,
                 status: true,
-              }
-            }
+              },
+            },
           },
         },
       },
@@ -64,8 +76,18 @@ export class LessonsService {
         'Bạn không có quyền thêm tài nguyên vào bài giảng này',
       );
     }
-    if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
-      throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
+    if (
+      !(
+        [
+          CourseStatus.DRAFT,
+          CourseStatus.REJECTED,
+          CourseStatus.UNPUBLISHED,
+        ] as CourseStatus[]
+      ).includes(lesson.section.course.status)
+    ) {
+      throw new BadRequestException(
+        'Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt',
+      );
     }
 
     const allowedTypes = {
@@ -74,14 +96,17 @@ export class LessonsService {
     };
 
     const uploadedKeys: string[] = [];
-    const resources: { name: string, key: string, mimeType: string, size: number, lessonId: number }[] = [];
+    const resources: {
+      name: string;
+      key: string;
+      mimeType: string;
+      size: number;
+      lessonId: number;
+    }[] = [];
 
     try {
       for (const file of files) {
-        const extension = file.originalname
-          .split('.')
-          .pop()
-          ?.toLowerCase();
+        const extension = file.originalname.split('.').pop()?.toLowerCase();
 
         if (!extension || !['pdf', 'zip'].includes(extension)) {
           throw new BadRequestException(
@@ -89,7 +114,7 @@ export class LessonsService {
           );
         }
 
-        //validate file thật 
+        //validate file thật
         const detectedType = await fileTypeFromBuffer(file.buffer);
 
         if (!detectedType) {
@@ -113,10 +138,9 @@ export class LessonsService {
         if (extension === 'zip') {
           if (
             detectedType.ext !== 'zip' ||
-            ![
-              'application/zip',
-              'application/x-zip-compressed',
-            ].includes(detectedType.mime)
+            !['application/zip', 'application/x-zip-compressed'].includes(
+              detectedType.mime,
+            )
           ) {
             throw new BadRequestException(
               `File "${file.originalname}" không phải là file ZIP hợp lệ`,
@@ -130,11 +154,7 @@ export class LessonsService {
         const key = `courses/${lesson.section.courseId}/lessons/${lesson.id}/${fileName}`;
 
         //upload file lên cloudflare
-        await this.storageService.uploadFile(
-          key,
-          file.buffer,
-          file.mimetype,
-        );
+        await this.storageService.uploadFile(key, file.buffer, file.mimetype);
         uploadedKeys.push(key);
         resources.push({
           name: file.originalname,
@@ -147,22 +167,21 @@ export class LessonsService {
       return await this.prisma.lessonResource.createMany({
         data: resources,
       });
-    }
-    catch (error) {
+    } catch (error) {
       await Promise.all(
-        uploadedKeys.map((key) =>
-          this.storageService.deleteFile(key),
-        ),
+        uploadedKeys.map((key) => this.storageService.deleteFile(key)),
       );
       throw error;
     }
   }
 
-  async downloadResources(userId: string, lessonId: number, resourceId: number) {
+  async downloadResources(
+    userId: string,
+    lessonId: number,
+    resourceId: number,
+  ) {
     // kiểm tra quyền truy cập tài nguyên
     await this.lessonAccessService.assertCanDownloadResource(userId, lessonId);
-
-    
 
     //check file exist in db
     const resource = await this.prisma.lessonResource.findFirst({
@@ -201,12 +220,13 @@ export class LessonsService {
       size: resource.size,
       expiresIn: 300,
     };
-
-
-
   }
 
-  async create(userId: string, createLessonDto: CreateLessonDto, videoFile: Express.Multer.File) {
+  async create(
+    userId: string,
+    createLessonDto: CreateLessonDto,
+    videoFile: Express.Multer.File,
+  ) {
     const filePath = videoFile?.path;
     let lessonId: number | null = null;
     try {
@@ -215,12 +235,12 @@ export class LessonsService {
       }
       const section = await this.prisma.section.findUnique({
         where: {
-          id: createLessonDto.sectionId
+          id: createLessonDto.sectionId,
         },
-        include: { course: true }
-      })
+        include: { course: true },
+      });
       if (!section) {
-        throw new BadRequestException("Không tìm thấy chương")
+        throw new BadRequestException('Không tìm thấy chương');
       }
       const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
 
@@ -229,10 +249,19 @@ export class LessonsService {
           'Bạn không có quyền thêm bài giảng vào khóa học này',
         );
       }
-      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(section.course.status)) {
-        throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
+      if (
+        !(
+          [
+            CourseStatus.DRAFT,
+            CourseStatus.REJECTED,
+            CourseStatus.UNPUBLISHED,
+          ] as CourseStatus[]
+        ).includes(section.course.status)
+      ) {
+        throw new BadRequestException(
+          'Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt',
+        );
       }
-
 
       const lesson = await this.prisma.lesson.create({
         data: {
@@ -244,9 +273,8 @@ export class LessonsService {
           videoId: null,
           duration: null,
           videoStatus: 'PENDING',
-        }
-
-      })
+        },
+      });
       lessonId = lesson.id;
 
       //thêm vào queue để upload video lên youtube (đưa job cho anh công nhân)
@@ -260,24 +288,25 @@ export class LessonsService {
     } catch (error) {
       //nếu trong quá trình tạo bài giảng có lỗi thì xoá bài giảng vừa tạo và xoá file video đã lưu trong temp
       if (lessonId) {
-        await this.prisma.lesson.delete({
-          where: {
-            id: lessonId,
-          },
-        }).catch(() => { });
+        await this.prisma.lesson
+          .delete({
+            where: {
+              id: lessonId,
+            },
+          })
+          .catch(() => {});
       }
 
       //xoá file video đã lưu trong temp
       if (filePath) {
-        await unlink(filePath).catch(() => { });
+        await unlink(filePath).catch(() => {});
       }
 
       if (error instanceof BadRequestException) {
-        throw error
+        throw error;
       }
-      throw new BadRequestException("Lỗi khi tạo bài giảng")
+      throw new BadRequestException('Lỗi khi tạo bài giảng');
     }
-
   }
 
   findAll() {
@@ -288,12 +317,17 @@ export class LessonsService {
     return `This action returns a #${id} lesson`;
   }
 
-  async update(id: number, userId: string, updateLessonDto: UpdateLessonDto, videoFile?: Express.Multer.File) {
+  async update(
+    id: number,
+    userId: string,
+    updateLessonDto: UpdateLessonDto,
+    videoFile?: Express.Multer.File,
+  ) {
     const filePath = videoFile?.path;
     try {
       const lesson = await this.prisma.lesson.findUnique({
         where: {
-          id: id
+          id: id,
         },
         include: {
           section: {
@@ -302,32 +336,48 @@ export class LessonsService {
               course: {
                 select: {
                   instructorId: true,
-                  status: true
-                }
-              }
-            }
-          }
-        }
-      })
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      });
       if (!lesson) {
-        throw new BadRequestException("Không tìm thấy bài giảng")
+        throw new BadRequestException('Không tìm thấy bài giảng');
       }
       const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
 
       if (!isAdmin && lesson.section.course.instructorId !== userId) {
-        throw new ForbiddenException("Bạn không có quyền cập nhật bài giảng này")
+        throw new ForbiddenException(
+          'Bạn không có quyền cập nhật bài giảng này',
+        );
       }
-      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
-        throw new BadRequestException('Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt');
+      if (
+        !(
+          [
+            CourseStatus.DRAFT,
+            CourseStatus.REJECTED,
+            CourseStatus.UNPUBLISHED,
+          ] as CourseStatus[]
+        ).includes(lesson.section.course.status)
+      ) {
+        throw new BadRequestException(
+          'Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt',
+        );
       }
-      if (videoFile && ['PENDING', 'UPLOADING', 'PROCESSING'].includes(lesson.videoStatus)) {
-        throw new ConflictException('Video hiện đang được xử lý, vui lòng chờ video hoàn tất trước khi upload video mới');
+      if (
+        videoFile &&
+        ['PENDING', 'UPLOADING', 'PROCESSING'].includes(lesson.videoStatus)
+      ) {
+        throw new ConflictException(
+          'Video hiện đang được xử lý, vui lòng chờ video hoàn tất trước khi upload video mới',
+        );
       }
-
 
       const updatedLesson = await this.prisma.lesson.update({
         where: {
-          id: id
+          id: id,
         },
         data: {
           title: updateLessonDto.title,
@@ -335,20 +385,22 @@ export class LessonsService {
           order: updateLessonDto.order,
           isPreview: updateLessonDto.isPreview,
           sectionId: updateLessonDto.sectionId,
-            ...(videoFile && {
+          ...(videoFile && {
             oldVideoId: lesson.videoId, // lưu videoId cũ để processor xóa sau khi video mới process xong
             videoId: null,
             duration: null,
             videoStatus: 'PENDING',
             videoError: null,
           }),
-        }
-      })
+        },
+      });
 
       // Dọn ảnh Cloudinary bị gỡ khỏi nội dung (ảnh vẫn còn dùng thì giữ lại)
       if (updateLessonDto.content !== undefined) {
         const oldIds = extractPublicIdsFromHtml(lesson.content);
-        const newIds = new Set(extractPublicIdsFromHtml(updateLessonDto.content));
+        const newIds = new Set(
+          extractPublicIdsFromHtml(updateLessonDto.content),
+        );
         const removed = oldIds.filter((publicId) => !newIds.has(publicId));
         if (removed.length > 0) {
           await this.cleanupService.addCloudinaryCleanupJob(removed);
@@ -363,8 +415,7 @@ export class LessonsService {
             title: updateLessonDto.title ?? lesson.title,
             description: stripHtmlTags(updateLessonDto.content),
           });
-        }
-        catch (error) {
+        } catch (error) {
           await this.prisma.lesson.update({
             where: { id: lesson.id },
             data: {
@@ -374,20 +425,23 @@ export class LessonsService {
               videoStatus: lesson.videoStatus,
               videoError: lesson.videoError,
             },
-          })
+          });
           throw error;
         }
-
       }
       return updatedLesson;
     } catch (error) {
       if (filePath) {
-        await unlink(filePath).catch(() => { });
+        await unlink(filePath).catch(() => {});
       }
-      if (error instanceof BadRequestException || error instanceof ForbiddenException || error instanceof ConflictException) {
-        throw error
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
       }
-      throw new BadRequestException("Lỗi khi cập nhật bài giảng")
+      throw new BadRequestException('Lỗi khi cập nhật bài giảng');
     }
   }
 
@@ -395,7 +449,7 @@ export class LessonsService {
     try {
       const lesson = await this.prisma.lesson.findUnique({
         where: {
-          id: id
+          id: id,
         },
         include: {
           section: {
@@ -404,42 +458,54 @@ export class LessonsService {
               course: {
                 select: {
                   instructorId: true,
-                  status: true
-                }
-              }
-            }
-          }
-        }
-      })
+                  status: true,
+                },
+              },
+            },
+          },
+        },
+      });
       if (!lesson) {
-        throw new BadRequestException("Không tìm thấy bài giảng")
+        throw new BadRequestException('Không tìm thấy bài giảng');
       }
       const isAdmin = await this.authorizationService.hasRole(
         instructorId,
         'ADMIN',
       );
       if (!isAdmin && lesson.section.course.instructorId !== instructorId) {
-        throw new ForbiddenException("Bạn không có quyền xóa bài giảng này")
+        throw new ForbiddenException('Bạn không có quyền xóa bài giảng này');
       }
-      if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(lesson.section.course.status)) {
-        throw new BadRequestException('Không thể xóa bài giảng khi khóa học đang xuất bản hoặc chờ duyệt');
+      if (
+        !(
+          [
+            CourseStatus.DRAFT,
+            CourseStatus.REJECTED,
+            CourseStatus.UNPUBLISHED,
+          ] as CourseStatus[]
+        ).includes(lesson.section.course.status)
+      ) {
+        throw new BadRequestException(
+          'Không thể xóa bài giảng khi khóa học đang xuất bản hoặc chờ duyệt',
+        );
       }
       await this.prisma.lesson.update({
         where: {
-          id: id
+          id: id,
         },
         data: {
           deletedAt: new Date(),
-        }
-      })
+        },
+      });
       this.cleanupService.addLessonCleanupJob(id);
       return lesson;
-    }
-    catch (error) {
-      if (error instanceof BadRequestException || error instanceof ForbiddenException) {
-        throw error
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
+      ) {
+        throw error;
       }
-      throw new BadRequestException("Lỗi khi xóa bài giảng")
+      throw new BadRequestException('Lỗi khi xóa bài giảng');
     }
   }
 }

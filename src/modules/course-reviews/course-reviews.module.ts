@@ -10,4 +10,4 @@ import { AuthorizationModule } from '@/authorization/authorization.module';
   providers: [CourseReviewsService],
   exports: [CourseReviewsService],
 })
-export class CourseReviewsModule { }
+export class CourseReviewsModule {}

@@ -1,112 +1,111 @@
 export const PERMISSIONS = {
-    // === SYSTEM & SETTINGS ===
-    // Permission permissions
-    PERMISSION_READ: 'permission.read',
-    PERMISSION_CREATE: 'permission.create',
-    PERMISSION_UPDATE: 'permission.update',
-    PERMISSION_DELETE: 'permission.delete',
+  // === SYSTEM & SETTINGS ===
+  // Permission permissions
+  PERMISSION_READ: 'permission.read',
+  PERMISSION_CREATE: 'permission.create',
+  PERMISSION_UPDATE: 'permission.update',
+  PERMISSION_DELETE: 'permission.delete',
 
-    // Audit Log permissions
-    AUDIT_LOG_READ: 'audit_log.read',
+  // Audit Log permissions
+  AUDIT_LOG_READ: 'audit_log.read',
 
-    // Dashboard & Analytics permissions
-    DASHBOARD_READ: 'dashboard.read',
+  // Dashboard & Analytics permissions
+  DASHBOARD_READ: 'dashboard.read',
 
-    // === USER & ROLE MANAGEMENT ===
-    // User permissions
-    USER_READ: 'user.read',
-    USER_CREATE: 'user.create',
-    USER_UPDATE: 'user.update',
-    USER_DELETE: 'user.delete',
+  // === USER & ROLE MANAGEMENT ===
+  // User permissions
+  USER_READ: 'user.read',
+  USER_CREATE: 'user.create',
+  USER_UPDATE: 'user.update',
+  USER_DELETE: 'user.delete',
 
-    // Role permissions
-    ROLE_READ: 'role.read',
-    ROLE_CREATE: 'role.create',
-    ROLE_UPDATE: 'role.update',
-    ROLE_DELETE: 'role.delete',
+  // Role permissions
+  ROLE_READ: 'role.read',
+  ROLE_CREATE: 'role.create',
+  ROLE_UPDATE: 'role.update',
+  ROLE_DELETE: 'role.delete',
 
-    // === LEARNING MANAGEMENT SYSTEM (LMS) ===
-    // Course permissions
-    COURSE_READ: 'course.read',
-    COURSE_CREATE: 'course.create',
-    COURSE_UPDATE: 'course.update',
-    COURSE_DELETE: 'course.delete',
-    COURSE_SUBMIT: 'course.submit',
-    COURSE_APPROVE: 'course.approve',
-    COURSE_REJECT: 'course.reject',
-    COURSE_UNPUBLISH: 'course.unpublish',
-    // Section permissions
-    SECTION_READ: 'section.read',
-    SECTION_CREATE: 'section.create',
-    SECTION_UPDATE: 'section.update',
-    SECTION_DELETE: 'section.delete',
+  // === LEARNING MANAGEMENT SYSTEM (LMS) ===
+  // Course permissions
+  COURSE_READ: 'course.read',
+  COURSE_CREATE: 'course.create',
+  COURSE_UPDATE: 'course.update',
+  COURSE_DELETE: 'course.delete',
+  COURSE_SUBMIT: 'course.submit',
+  COURSE_APPROVE: 'course.approve',
+  COURSE_REJECT: 'course.reject',
+  COURSE_UNPUBLISH: 'course.unpublish',
+  // Section permissions
+  SECTION_READ: 'section.read',
+  SECTION_CREATE: 'section.create',
+  SECTION_UPDATE: 'section.update',
+  SECTION_DELETE: 'section.delete',
 
-    // Lesson permissions
-    LESSON_READ: 'lesson.read',
-    LESSON_CREATE: 'lesson.create',
-    LESSON_UPDATE: 'lesson.update',
-    LESSON_DELETE: 'lesson.delete',
+  // Lesson permissions
+  LESSON_READ: 'lesson.read',
+  LESSON_CREATE: 'lesson.create',
+  LESSON_UPDATE: 'lesson.update',
+  LESSON_DELETE: 'lesson.delete',
 
-    // Tag permissions
-    TAG_READ: 'tag.read',
-    TAG_CREATE: 'tag.create',
-    TAG_UPDATE: 'tag.update',
-    TAG_DELETE: 'tag.delete',
+  // Tag permissions
+  TAG_READ: 'tag.read',
+  TAG_CREATE: 'tag.create',
+  TAG_UPDATE: 'tag.update',
+  TAG_DELETE: 'tag.delete',
 
-    // Category permissions
-    CATEGORY_READ: 'category.read',
-    CATEGORY_CREATE: 'category.create',
-    CATEGORY_UPDATE: 'category.update',
-    CATEGORY_DELETE: 'category.delete',
+  // Category permissions
+  CATEGORY_READ: 'category.read',
+  CATEGORY_CREATE: 'category.create',
+  CATEGORY_UPDATE: 'category.update',
+  CATEGORY_DELETE: 'category.delete',
 
-    // Enrollment permissions (Ghi danh học viên)
-    ENROLLMENT_READ: 'enrollment.read',
-    ENROLLMENT_CREATE: 'enrollment.create',
-    ENROLLMENT_UPDATE: 'enrollment.update',
-    ENROLLMENT_DELETE: 'enrollment.delete',
+  // Enrollment permissions (Ghi danh học viên)
+  ENROLLMENT_READ: 'enrollment.read',
+  ENROLLMENT_CREATE: 'enrollment.create',
+  ENROLLMENT_UPDATE: 'enrollment.update',
+  ENROLLMENT_DELETE: 'enrollment.delete',
 
-    // Wishlist permissions
-    WISHLIST_READ: 'wishlist.read',
-    WISHLIST_CREATE: 'wishlist.create',
-    WISHLIST_DELETE: 'wishlist.delete',
+  // Wishlist permissions
+  WISHLIST_READ: 'wishlist.read',
+  WISHLIST_CREATE: 'wishlist.create',
+  WISHLIST_DELETE: 'wishlist.delete',
 
-    // === COMMERCE & TRANSACTIONS ===
-    // Order permissions
-    ORDER_READ: 'order.read',
-    ORDER_CREATE: 'order.create',
-    ORDER_UPDATE: 'order.update',
-    ORDER_DELETE: 'order.delete',
+  // === COMMERCE & TRANSACTIONS ===
+  // Order permissions
+  ORDER_READ: 'order.read',
+  ORDER_CREATE: 'order.create',
+  ORDER_UPDATE: 'order.update',
+  ORDER_DELETE: 'order.delete',
 
-    // === BLOG & CONTENT ===
-    // Post permissions
-    POST_READ: 'post.read',
-    POST_CREATE: 'post.create',
-    POST_UPDATE: 'post.update',
-    POST_DELETE: 'post.delete',
+  // === BLOG & CONTENT ===
+  // Post permissions
+  POST_READ: 'post.read',
+  POST_CREATE: 'post.create',
+  POST_UPDATE: 'post.update',
+  POST_DELETE: 'post.delete',
 
-    // === SOCIAL & FEEDBACK ===
-    // Course Comment / Review permissions
-    COURSE_REVIEW_READ: 'course_review.read',
-    COURSE_REVIEW_CREATE: 'course_review.create',
-    COURSE_REVIEW_UPDATE: 'course_review.update',
-    COURSE_REVIEW_DELETE: 'course_review.delete',
+  // === SOCIAL & FEEDBACK ===
+  // Course Comment / Review permissions
+  COURSE_REVIEW_READ: 'course_review.read',
+  COURSE_REVIEW_CREATE: 'course_review.create',
+  COURSE_REVIEW_UPDATE: 'course_review.update',
+  COURSE_REVIEW_DELETE: 'course_review.delete',
 
-    // Post Comment permissions
-    POST_COMMENT_READ: 'post_comment.read',
-    POST_COMMENT_CREATE: 'post_comment.create',
-    POST_COMMENT_UPDATE: 'post_comment.update',
-    POST_COMMENT_DELETE: 'post_comment.delete',
+  // Post Comment permissions
+  POST_COMMENT_READ: 'post_comment.read',
+  POST_COMMENT_CREATE: 'post_comment.create',
+  POST_COMMENT_UPDATE: 'post_comment.update',
+  POST_COMMENT_DELETE: 'post_comment.delete',
 
-    // === MEDIA & FILE STORAGE ===
-    // Media / File Upload permissions
-    MEDIA_UPLOAD: 'media.upload',
-    MEDIA_DELETE: 'media.delete',
-    LESSON_RESOURCE_CREATE: 'lesson.resource.create',
-    LESSON_RESOURCE_DELETE: 'lesson.resource.delete',
+  // === MEDIA & FILE STORAGE ===
+  // Media / File Upload permissions
+  MEDIA_UPLOAD: 'media.upload',
+  MEDIA_DELETE: 'media.delete',
+  LESSON_RESOURCE_CREATE: 'lesson.resource.create',
+  LESSON_RESOURCE_DELETE: 'lesson.resource.delete',
 
-    // Interaction permissions: Like/Dislike
-    INTERACTION_REACT: 'interaction.react'
+  // Interaction permissions: Like/Dislike
+  INTERACTION_REACT: 'interaction.react',
 } as const;
 
-export type Permission =
-    (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

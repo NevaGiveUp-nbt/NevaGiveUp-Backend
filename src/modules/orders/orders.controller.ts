@@ -1,4 +1,12 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+} from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -10,7 +18,10 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  async create(@CurrentUser() user: AuthUser,@Body() createOrderDto: CreateOrderDto) {
+  async create(
+    @CurrentUser() user: AuthUser,
+    @Body() createOrderDto: CreateOrderDto,
+  ) {
     return this.ordersService.create(user.id, createOrderDto);
   }
 

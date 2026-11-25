@@ -8,6 +8,6 @@ import { AuthorizationModule } from '@/authorization/authorization.module';
   imports: [PrismaModule, AuthorizationModule],
   controllers: [InteractionController],
   providers: [InteractionService],
-  exports: [InteractionService]
+  exports: [InteractionService],
 })
-export class InteractionModule { }
+export class InteractionModule {}

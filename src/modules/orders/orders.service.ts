@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+} from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -7,10 +11,7 @@ import { generateOrderNumber } from '@/helpers/Payment.util';
 
 @Injectable()
 export class OrdersService {
-
-  constructor(private readonly prisma: PrismaService) { }
-
-
+  constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, createOrderDto: CreateOrderDto) {
     const { courseId } = createOrderDto;
@@ -19,34 +20,32 @@ export class OrdersService {
       where: {
         id: courseId,
         deletedAt: null,
-        status: CourseStatus.PUBLISHED
-
-      }
-    })
+        status: CourseStatus.PUBLISHED,
+      },
+    });
 
     if (!course) {
-      throw new BadRequestException("Không tìm thấy khóa học");
+      throw new BadRequestException('Không tìm thấy khóa học');
     }
 
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
         userId_courseId: {
           userId: userId,
-          courseId: courseId
-        }
-      }
-    })
+          courseId: courseId,
+        },
+      },
+    });
 
     if (enrollment) {
-      throw new ConflictException(
-        'Bạn đã đăng ký khóa học này',
-      );
+      throw new ConflictException('Bạn đã đăng ký khóa học này');
     }
 
-    if (course.discount === null || new Prisma.Decimal(course.discount).lessThanOrEqualTo(0)) {
-      throw new ConflictException(
-        'Giá giảm của khóa học không hợp lệ',
-      );
+    if (
+      course.discount === null ||
+      new Prisma.Decimal(course.discount).lessThanOrEqualTo(0)
+    ) {
+      throw new ConflictException('Giá giảm của khóa học không hợp lệ');
     }
 
     const originalPrice = new Prisma.Decimal(course.price);
@@ -59,9 +58,7 @@ export class OrdersService {
       );
     }
     if (finalPrice.greaterThan(originalPrice)) {
-      throw new ConflictException(
-        'Giá giảm của khóa học không hợp lệ',
-      );
+      throw new ConflictException('Giá giảm của khóa học không hợp lệ');
     }
 
     const order = await this.prisma.$transaction(async (tx) => {
@@ -103,11 +100,9 @@ export class OrdersService {
     });
 
     return order;
-
-
   }
 
-  async findAll() {
+  findAll() {
     return `This action returns all orders`;
   }
 

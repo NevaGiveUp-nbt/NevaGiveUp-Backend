@@ -1,848 +1,969 @@
-import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
-import { BulkDeleteDto, BulkStatusDto, ChangeStatusDto, UpdateUserDto } from './dto/update-user.dto';
+import {
+  BulkDeleteDto,
+  BulkStatusDto,
+  ChangeStatusDto,
+  UpdateUserDto,
+} from './dto/update-user.dto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { comparePasswordHelper, hashPasswordHelper } from '@/helpers/normalizeArray.utils';
-import { CreateAuthDto, ResendOtpDto, ResetPasswordDto, SendForgotPasswordOTPDto, VerifyActivateOtpDto, VerifyResetPasswordOtpDto } from '@/auth/dto/create-auth.dto';
-import { nanoid, customAlphabet } from 'nanoid'
+import {
+  comparePasswordHelper,
+  hashPasswordHelper,
+} from '@/helpers/normalizeArray.utils';
+import {
+  CreateAuthDto,
+  ResendOtpDto,
+  ResetPasswordDto,
+  SendForgotPasswordOTPDto,
+  VerifyActivateOtpDto,
+  VerifyResetPasswordOtpDto,
+} from '@/auth/dto/create-auth.dto';
+import { nanoid, customAlphabet } from 'nanoid';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import { MailService } from '@/mail/mail.service';
 import { OAuthDto } from '@/auth/dto/oauth.dto';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
-import { uuidv7 } from "uuidv7";
+import { uuidv7 } from 'uuidv7';
 import { RoleName } from './dto/create-user.dto';
 dayjs.extend(utc);
 @Injectable()
 export class UsersService {
-    constructor(private prisma: PrismaService, private mailService: MailService) { }
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
-    //func check email and phone exist
-    checkEmailOrPhoneExist = async (email: string, phone: string) => {
-        const user = await this.prisma.user.count({
-            where: {
-                OR: [
-                    { email },
-                    { phone }
-                ]
-            }
-        })
-        if (user > 0) {
-            return false;
-        }
-        return true;
+  //func check email and phone exist
+  checkEmailOrPhoneExist = async (email: string, phone: string) => {
+    const user = await this.prisma.user.count({
+      where: {
+        OR: [{ email }, { phone }],
+      },
+    });
+    if (user > 0) {
+      return false;
     }
-    async createUser(createUserDto: CreateUserDto) {
-        try {
-            const { name, email, phone, password, role } = createUserDto;
-            const checkEmailOrPhoneExist = await this.checkEmailOrPhoneExist(email, phone)
-            if (!checkEmailOrPhoneExist) {
-                throw new BadRequestException('Email hoặc số điện thoại đã tồn tại')
-            }
+    return true;
+  };
+  async createUser(createUserDto: CreateUserDto) {
+    try {
+      const { name, email, phone, password, role } = createUserDto;
+      const checkEmailOrPhoneExist = await this.checkEmailOrPhoneExist(
+        email,
+        phone,
+      );
+      if (!checkEmailOrPhoneExist) {
+        throw new BadRequestException('Email hoặc số điện thoại đã tồn tại');
+      }
 
-            const roleRecord = await this.prisma.role.findUnique({
-                where: { name: role },
-            });
+      const roleRecord = await this.prisma.role.findUnique({
+        where: { name: role },
+      });
 
-            if (!roleRecord) {
-                throw new BadRequestException('Vai trò không hợp lệ');
-            }
+      if (!roleRecord) {
+        throw new BadRequestException('Vai trò không hợp lệ');
+      }
 
-            const hashPassword = await hashPasswordHelper(password);
-            const id = uuidv7();
-            const user = await this.prisma.user.create({
-                data: {
-                    id,
-                    name,
-                    email,
-                    phone,
-                    password: hashPassword,
-                    status: true,
-                    isActive: true,
-                    provider: ['local'],
-                    roles: {
-                        create: {
-                            roleId: roleRecord.id,
-                        },
-                    },
-                },
-            });
-
-            return {
-                id: user.id,
-                role: roleRecord.name,
-            };
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Tạo người dùng thất bại');
-        }
-
-    }
-
-    async findAllPaginate(page: number, limit: number, sortBy: string, sortOrder: 'asc' | 'desc', search?: string) {
-        const allowedFields = ['name', 'email', 'createdAt'];
-        const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
-
-        const whereCondition: any = {
-            deletedAt: null
-        };
-
-        if (search && search.trim() !== "") {
-            whereCondition.OR = [
-                {
-                    name: {
-                        contains: search.trim(),
-                        mode: 'insensitive', // Không phân biệt chữ hoa / chữ thường (Chỉ hỗ trợ tốt trên PostgreSQL)
-                    },
-                },
-                {
-                    email: {
-                        contains: search.trim(),
-                        mode: 'insensitive',
-                    },
-                },
-            ];
-        }
-
-        const skip = (page - 1) * limit;
-        const take = limit;
-        const [users, totalItems] = await Promise.all([
-            this.prisma.user.findMany({
-                where: whereCondition,
-                skip: skip,
-                take: take,
-                orderBy: {
-                    [finalSortBy]: sortOrder
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    avatar: true,
-                    phone: true,
-                    address: true,
-                    isActive: true,
-                    status: true,
-                    provider: true,
-                    createdAt: true,
-                    updatedAt: true,
-                    roles: {
-                        select: {
-                            role: {
-                                select: {
-                                    id: true,
-                                    name: true,
-                                },
-                            },
-                        },
-                    },
-                },
-            }),
-            this.prisma.user.count({
-                where: whereCondition
-            })
-        ])
-
-        const normalizedUsers = users.map((user) => ({
-            ...user,
-            roles: user.roles?.map((role) => ({ id: role.role.id, name: role.role.name })) ?? [],
-        }));
-
-        const totalPages = Math.ceil(totalItems / take);
-        return { users: normalizedUsers, totalItems, totalPages };
-    }
-
-    async findAll() {
-        const users = await this.prisma.user.findMany({
-            where: {
-                deletedAt: null
+      const hashPassword = await hashPasswordHelper(password);
+      const id = uuidv7();
+      const user = await this.prisma.user.create({
+        data: {
+          id,
+          name,
+          email,
+          phone,
+          password: hashPassword,
+          status: true,
+          isActive: true,
+          provider: ['local'],
+          roles: {
+            create: {
+              roleId: roleRecord.id,
             },
+          },
+        },
+      });
+
+      return {
+        id: user.id,
+        role: roleRecord.name,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Tạo người dùng thất bại');
+    }
+  }
+
+  async findAllPaginate(
+    page: number,
+    limit: number,
+    sortBy: string,
+    sortOrder: 'asc' | 'desc',
+    search?: string,
+  ) {
+    const allowedFields = ['name', 'email', 'createdAt'];
+    const finalSortBy = allowedFields.includes(sortBy) ? sortBy : 'createdAt';
+
+    const whereCondition: any = {
+      deletedAt: null,
+    };
+
+    if (search && search.trim() !== '') {
+      whereCondition.OR = [
+        {
+          name: {
+            contains: search.trim(),
+            mode: 'insensitive', // Không phân biệt chữ hoa / chữ thường (Chỉ hỗ trợ tốt trên PostgreSQL)
+          },
+        },
+        {
+          email: {
+            contains: search.trim(),
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const take = limit;
+    const [users, totalItems] = await Promise.all([
+      this.prisma.user.findMany({
+        where: whereCondition,
+        skip: skip,
+        take: take,
+        orderBy: {
+          [finalSortBy]: sortOrder,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatar: true,
+          phone: true,
+          address: true,
+          isActive: true,
+          status: true,
+          provider: true,
+          createdAt: true,
+          updatedAt: true,
+          roles: {
             select: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.user.count({
+        where: whereCondition,
+      }),
+    ]);
+
+    const normalizedUsers = users.map((user) => ({
+      ...user,
+      roles:
+        user.roles?.map((role) => ({
+          id: role.role.id,
+          name: role.role.name,
+        })) ?? [],
+    }));
+
+    const totalPages = Math.ceil(totalItems / take);
+    return { users: normalizedUsers, totalItems, totalPages };
+  }
+
+  async findAll() {
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        phone: true,
+        address: true,
+        isActive: true,
+        status: true,
+        provider: true,
+        createdAt: true,
+        updatedAt: true,
+        roles: {
+          select: {
+            role: {
+              select: {
                 id: true,
                 name: true,
-                email: true,
-                avatar: true,
-                phone: true,
-                address: true,
-                isActive: true,
-                status: true,
-                provider: true,
-                createdAt: true,
-                updatedAt: true,
-                roles: {
-                    select: {
-                        role: {
-                            select: {
-                                id: true,
-                                name: true,
-                            },
-                        },
-                    },
-                },
+              },
             },
+          },
+        },
+      },
+    });
+
+    const normalizedUsers = users.map((user) => ({
+      ...user,
+      roles:
+        user.roles?.map((role) => ({
+          id: role.role.id,
+          name: role.role.name,
+        })) ?? [],
+    }));
+    return normalizedUsers;
+  }
+  findOne(id: number) {
+    return `This action returns a #${id} user`;
+  }
+
+  async findAllInstructor() {
+    try {
+      return this.prisma.user.findMany({
+        where: {
+          roles: {
+            some: {
+              role: {
+                name: 'INSTRUCTOR',
+              },
+            },
+          },
+          status: true,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          avatar: true,
+        },
+      });
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi lấy danh sách giảng viên',
+      );
+    }
+  }
+
+  async findByEmail(email: string) {
+    return await this.prisma.user.findFirst({
+      where: {
+        email: email,
+        deletedAt: null,
+      },
+    });
+  }
+
+  async bulkStatus(userId: string, bulkStatusDto: BulkStatusDto) {
+    try {
+      const { ids, status } = bulkStatusDto;
+
+      if (ids.includes(userId)) {
+        throw new BadRequestException(
+          'Không thể thay đổi trạng thái của chính mình',
+        );
+      }
+
+      const result = await this.prisma.user.updateMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+        data: {
+          status: status,
+        },
+      });
+      return {
+        count: result.count,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi cập nhật trạng thái người dùng',
+      );
+    }
+  }
+
+  async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
+    try {
+      const { ids } = bulkDeleteDto;
+      const users = await this.prisma.user.findMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+        include: {
+          roles: {
+            include: {
+              role: true,
+            },
+          },
+        },
+      });
+
+      if (
+        users.some((u) =>
+          u.roles.some((roleItem) => roleItem.role.name === 'ADMIN'),
+        )
+      ) {
+        throw new BadRequestException('Không thể xóa Admin');
+      }
+
+      const result = await this.prisma.user.updateMany({
+        where: {
+          id: {
+            in: ids,
+          },
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
+      return {
+        count: result.count,
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi xóa người dùng',
+      );
+    }
+  }
+
+  async update(id: string, userId: string, updateUserDto: UpdateUserDto) {
+    try {
+      const { name, phone, address, roles, status } = updateUserDto;
+
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        include: {
+          roles: { include: { role: true } },
+          _count: { select: { courses: true } },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+
+      if (id === userId && status === false) {
+        throw new BadRequestException(
+          'Không thể thay đổi trạng thái của chính mình',
+        );
+      }
+
+      if (roles !== undefined) {
+        const instructorRole = await this.prisma.role.findUnique({
+          where: { name: 'INSTRUCTOR' },
+          select: { id: true },
         });
 
-        const normalizedUsers = users.map((user) => ({
-            ...user,
-            roles: user.roles?.map((role) => ({ id: role.role.id, name: role.role.name })) ?? [],
-        }));
-        return normalizedUsers;
-    }
-    findOne(id: number) {
-        return `This action returns a #${id} user`;
-    }
+        const hasInstructorRole = user.roles.some(
+          (userRole) => userRole.role.name === 'INSTRUCTOR',
+        );
 
-    async findAllInstructor() {
-        try {
-            return this.prisma.user.findMany({
-                where: {
-                    roles: {
-                        some: {
-                            role: {
-                                name: 'INSTRUCTOR',
-                            },
-                        },
-                    },
-                    status: true,
-                    isActive: true,
-                    deletedAt: null,
-                },
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    address: true,
-                    avatar: true,
-                },
-            });
-        } catch (error) {
-            throw new InternalServerErrorException('Có lỗi xảy ra khi lấy danh sách giảng viên');
+        const isChangingFromInstructor =
+          hasInstructorRole &&
+          instructorRole !== null &&
+          !roles.includes(instructorRole.id);
+
+        if (isChangingFromInstructor && user._count.courses > 0) {
+          throw new BadRequestException(
+            'Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó',
+          );
         }
-    }
 
-    async findByEmail(email: string) {
-        return await this.prisma.user.findFirst({
+        const validRoles = await this.prisma.role.findMany({
+          where: { id: { in: roles } },
+          select: { id: true },
+        });
+
+        if (validRoles.length !== roles.length) {
+          throw new BadRequestException('Một hoặc nhiều vai trò không hợp lệ');
+        }
+      }
+
+      if (phone !== undefined && phone !== null) {
+        const checkPhoneExist = await this.prisma.user.findFirst({
+          where: { phone, NOT: { id } },
+          select: { id: true },
+        });
+
+        if (checkPhoneExist) {
+          throw new BadRequestException('Số điện thoại đã tồn tại');
+        }
+      }
+
+      const updateUser = await this.prisma.$transaction(async (tx) => {
+        if (roles !== undefined) {
+          await tx.userRole.deleteMany({
             where: {
-                email: email,
-                deletedAt: null
-            }
-        })
-    }
+              userId: id,
+              roleId: { notIn: roles },
+            },
+          });
 
-    async bulkStatus(userId: string, bulkStatusDto: BulkStatusDto) {
-        try {
-            const { ids, status } = bulkStatusDto;
-
-            if (ids.includes(userId)) {
-                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
-            }
-
-            const result = await this.prisma.user.updateMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                },
-                data: {
-                    status: status
-                }
-            })
-            return {
-                count: result.count
-            }
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật trạng thái người dùng');
-        }
-    }
-
-    async bulkDelete(bulkDeleteDto: BulkDeleteDto) {
-        try {
-            const { ids } = bulkDeleteDto;
-            const users = await this.prisma.user.findMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                },
-                include: {
-                    roles: {
-                        include: {
-                            role: true,
-                        },
-                    },
-                },
+          if (roles.length > 0) {
+            await tx.userRole.createMany({
+              data: roles.map((roleId) => ({ userId: id, roleId })),
+              skipDuplicates: true,
             });
-
-            if (users.some((u) => u.roles.some((roleItem) => roleItem.role.name === 'ADMIN'))) {
-                throw new BadRequestException("Không thể xóa Admin");
-            }
-
-            const result = await this.prisma.user.updateMany({
-                where: {
-                    id: {
-                        in: ids
-                    }
-                },
-                data: {
-                    deletedAt: new Date()
-                }
-            })
-            return {
-                count: result.count
-            }
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi xóa người dùng');
+          }
         }
+
+        return tx.user.update({
+          where: { id },
+          data: { name, phone, address, status },
+          include: {
+            roles: { include: { role: true } },
+          },
+        });
+      });
+
+      return {
+        id: updateUser.id,
+        name: updateUser.name,
+        email: updateUser.email,
+        phone: updateUser.phone,
+        address: updateUser.address,
+        roles: updateUser.roles.map((userRole) => userRole.role.name),
+        status: updateUser.status,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật');
     }
+  }
 
-    async update(id: string, userId: string, updateUserDto: UpdateUserDto) {
-        try {
-            const { name, phone, address, roles, status } = updateUserDto;
+  async changeStatus(userId: string, changeStatusDto: ChangeStatusDto) {
+    try {
+      const { id, status } = changeStatusDto;
 
-            const user = await this.prisma.user.findUnique({
-                where: { id },
-                include: {
-                    roles: { include: { role: true } },
-                    _count: { select: { courses: true } },
-                },
-            });
+      if (userId === id) {
+        throw new BadRequestException(
+          'Không thể thay đổi trạng thái của chính mình',
+        );
+      }
 
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng');
-            }
-
-            if (id === userId && status === false) {
-                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
-            }
-
-            if (roles !== undefined) {
-                const instructorRole = await this.prisma.role.findUnique({
-                    where: { name: 'INSTRUCTOR' },
-                    select: { id: true },
-                });
-
-                const hasInstructorRole = user.roles.some(
-                    (userRole) => userRole.role.name === 'INSTRUCTOR',
-                );
-
-                const isChangingFromInstructor =
-                    hasInstructorRole &&
-                    instructorRole !== null &&
-                    !roles.includes(instructorRole.id);
-
-                if (isChangingFromInstructor && user._count.courses > 0) {
-                    throw new BadRequestException(
-                        'Không thể thay đổi vai trò của giảng viên này vì hiện đang dạy trong 1 khoá học nào đó',
-                    );
-                }
-
-                const validRoles = await this.prisma.role.findMany({
-                    where: { id: { in: roles } },
-                    select: { id: true },
-                });
-
-                if (validRoles.length !== roles.length) {
-                    throw new BadRequestException('Một hoặc nhiều vai trò không hợp lệ');
-                }
-            }
-
-            if (phone !== undefined && phone !== null) {
-                const checkPhoneExist = await this.prisma.user.findFirst({
-                    where: { phone, NOT: { id } },
-                    select: { id: true },
-                });
-
-                if (checkPhoneExist) {
-                    throw new BadRequestException('Số điện thoại đã tồn tại');
-                }
-            }
-
-            const updateUser = await this.prisma.$transaction(async (tx) => {
-                if (roles !== undefined) {
-                    await tx.userRole.deleteMany({
-                        where: {
-                            userId: id,
-                            roleId: { notIn: roles },
-                        },
-                    });
-
-                    if (roles.length > 0) {
-                        await tx.userRole.createMany({
-                            data: roles.map((roleId) => ({ userId: id, roleId })),
-                            skipDuplicates: true,
-                        });
-                    }
-                }
-
-                return tx.user.update({
-                    where: { id },
-                    data: { name, phone, address, status },
-                    include: {
-                        roles: { include: { role: true } },
-                    },
-                });
-            });
-
-            return {
-                id: updateUser.id,
-                name: updateUser.name,
-                email: updateUser.email,
-                phone: updateUser.phone,
-                address: updateUser.address,
-                roles: updateUser.roles.map((userRole) => userRole.role.name),
-                status: updateUser.status,
-            };
-        } catch (error) {
-            if (error instanceof NotFoundException || error instanceof BadRequestException) {
-                throw error;
-            }
-
-            throw new InternalServerErrorException('Có lỗi xảy ra khi cập nhật');
-        }
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id,
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+      const changeStatusUser = await this.prisma.user.update({
+        where: {
+          id: id,
+        },
+        data: {
+          status: status,
+        },
+      });
+      return {
+        id: changeStatusUser.id,
+        email: changeStatusUser.email,
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi thay đổi trạng thái',
+      );
     }
+  }
 
-    async changeStatus(userId: string, changeStatusDto: ChangeStatusDto) {
-        try {
-            const { id, status } = changeStatusDto;
-
-            if (userId === id) {
-                throw new BadRequestException('Không thể thay đổi trạng thái của chính mình');
-            }
-
-            const user = await this.prisma.user.findUnique({
-                where: {
-                    id: id
-                }
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
-            const changeStatusUser = await this.prisma.user.update({
-                where: {
-                    id: id
-                },
-                data: {
-                    status: status
-                }
-            })
-            return {
-                id: changeStatusUser.id,
-                email: changeStatusUser.email
-            }
-        }
-        catch (error) {
-            if (error instanceof NotFoundException || error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi thay đổi trạng thái');
-        }
+  async remove(id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id,
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+      const removeUser = await this.prisma.user.delete({
+        where: {
+          id: id,
+        },
+      });
+      return {
+        id: removeUser.id,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
     }
+  }
 
-    async remove(id: string) {
-        try {
-            const user = await this.prisma.user.findUnique({
-                where: {
-                    id: id
-                }
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
-            const removeUser = await this.prisma.user.delete({
-                where: {
-                    id: id
-                }
-            })
-            return {
-                id: removeUser.id
-            }
-        }
-        catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi xóa');
-        }
+  async softDelete(id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: {
+          id: id,
+        },
+        include: {
+          roles: {
+            include: {
+              role: true,
+            },
+          },
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+      if (user.roles.some((userRole) => userRole.role.name === 'ADMIN')) {
+        throw new BadRequestException('Không thể xoá Admin');
+      }
+      return await this.prisma.user.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi xoá người dùng',
+      );
     }
+  }
 
-    async softDelete(id: string) {
-        try {
-            const user = await this.prisma.user.findUnique({
-                where: {
-                    id: id
-                },
-                include: {
-                    roles: {
-                        include: {
-                            role: true,
-                        },
-                    },
-                },
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
-            if (user.roles.some((userRole) => userRole.role.name === 'ADMIN')) {
-                throw new BadRequestException('Không thể xoá Admin')
-            }
-            return await this.prisma.user.update({
-                where: { id },
-                data: { deletedAt: new Date() },
-            })
-        }
-        catch (error) {
-            if (error instanceof NotFoundException || error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi xoá người dùng');
-        }
+  async handleRegister(registerDTO: CreateAuthDto) {
+    //check email or phone exist
+    const checkUserExist = await this.checkEmailOrPhoneExist(
+      registerDTO.email,
+      registerDTO.phone,
+    );
+    if (!checkUserExist) {
+      throw new ConflictException('Email hoặc số điện thoại đã tồn tại');
     }
+    //hash password
+    const hashPassword = await hashPasswordHelper(registerDTO.password);
+    //create user
+    const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+    const codeExpired = dayjs()
+      .utc()
+      .add(Number(process.env.CODE_EXPIRED), 'minute')
+      .toDate();
+    const verifyToken = uuidv4();
+    const verifyTokenExpired = dayjs()
+      .utc()
+      .add(Number(process.env.VERIFY_TOKEN_EXPIRED), 'minute')
+      .toDate();
+    const user = await this.prisma.user.create({
+      data: {
+        email: registerDTO.email,
+        phone: registerDTO.phone,
+        password: hashPassword,
+        name: registerDTO.name,
+        isActive: false,
+        codeId: codeID,
+        codeExpired: codeExpired,
+        verifyToken: verifyToken,
+        verifyTokenExpired: verifyTokenExpired,
+        provider: ['local'],
+        roles: {
+          create: {
+            role: {
+              connect: {
+                name: 'STUDENT',
+              },
+            },
+          },
+        },
+      },
+    });
+    //send email to verify account
+    await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
+    return {
+      id: user.id,
+      verifyToken: user.verifyToken,
+    };
+  }
 
-    async handleRegister(registerDTO: CreateAuthDto) {
-        //check email or phone exist
-        const checkUserExist = await this.checkEmailOrPhoneExist(registerDTO.email, registerDTO.phone);
-        if (!checkUserExist) {
-            throw new ConflictException('Email hoặc số điện thoại đã tồn tại');
-        }
-        //hash password
-        const hashPassword = await hashPasswordHelper(registerDTO.password);
-        //create user
-        const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
-        const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
-        const verifyToken = uuidv4();
-        const verifyTokenExpired = dayjs().utc().add(Number(process.env.VERIFY_TOKEN_EXPIRED), 'minute').toDate();
-        const user = await this.prisma.user.create({
-            data: {
-                email: registerDTO.email,
-                phone: registerDTO.phone,
-                password: hashPassword,
-                name: registerDTO.name,
-                isActive: false,
-                codeId: codeID,
-                codeExpired: codeExpired,
-                verifyToken: verifyToken,
-                verifyTokenExpired: verifyTokenExpired,
-                provider: ["local"],
-                roles: {
-                    create: {
-                        role: {
-                            connect: {
-                                name: 'STUDENT',
-                            },
-                        },
-                    },
-                },
-            }
-        })
-        //send email to verify account
-        await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
-        return {
-            id: user.id,
-            verifyToken: user.verifyToken
-        };
+  async handleVerifyActivateOtp(verifyActivateOtpDTO: VerifyActivateOtpDto) {
+    try {
+      const { verifyToken, codeId } = verifyActivateOtpDTO;
+      const user = await this.prisma.user.findFirst({
+        where: {
+          verifyToken: verifyToken,
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+
+      if (user.isActive) {
+        throw new BadRequestException('Người dùng đã được xác thực');
+      }
+
+      if (user.codeId !== codeId) {
+        throw new BadRequestException('Mã xác thực không chính xác');
+      }
+      //check verify token expired
+      const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(
+        dayjs(),
+      );
+      if (!user.verifyTokenExpired || isVerifyTokenExpired) {
+        throw new UnauthorizedException('Verify token đã hết hạn');
+      }
+      //check code id expired
+      const isCodeExpired = dayjs(user.codeExpired).isBefore(dayjs());
+      if (!user.codeExpired || isCodeExpired) {
+        throw new UnauthorizedException('Mã xác thực đã hết hạn');
+      }
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          isActive: true,
+        },
+      });
+      return {
+        id: updateUser.id,
+        name: updateUser.name,
+        email: updateUser.email,
+        phone: updateUser.phone,
+        address: updateUser.address,
+        avatar: updateUser.avatar,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
     }
+  }
 
-    async handleVerifyActivateOtp(verifyActivateOtpDTO: VerifyActivateOtpDto) {
-        try {
-            const { verifyToken, codeId } = verifyActivateOtpDTO;
-            const user = await this.prisma.user.findFirst({
-                where: {
-                    verifyToken: verifyToken
-                }
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
+  async handleResendOtp(resendOtpDTO: ResendOtpDto) {
+    try {
+      const now = Date.now();
+      const requestLimitMs = 2 * 60 * 1000;
 
-            if (user.isActive) {
-                throw new BadRequestException('Người dùng đã được xác thực')
-            }
+      const user = await this.prisma.user.findFirst({
+        where: {
+          verifyToken: resendOtpDTO.verifyToken,
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+      //check verify token expired
+      const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(
+        dayjs(),
+      );
+      if (!user.verifyTokenExpired || isVerifyTokenExpired) {
+        throw new UnauthorizedException(
+          'Verify token đã hết hạn, vui lòng đăng nhập lại để xác thực tài khoản',
+        );
+      }
 
-            if (user.codeId !== codeId) {
-                throw new BadRequestException('Mã xác thực không chính xác')
-            }
-            //check verify token expired
-            const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
-            if (!user.verifyTokenExpired || isVerifyTokenExpired) {
-                throw new UnauthorizedException('Verify token đã hết hạn')
-            }
-            //check code id expired
-            const isCodeExpired = dayjs(user.codeExpired).isBefore(dayjs());
-            if (!user.codeExpired || isCodeExpired) {
-                throw new UnauthorizedException('Mã xác thực đã hết hạn')
-            }
-            const updateUser = await this.prisma.user.update({
-                where: {
-                    id: user.id
-                },
-                data: {
-                    isActive: true
-                }
-            })
-            return {
-                id: updateUser.id,
-                name: updateUser.name,
-                email: updateUser.email,
-                phone: updateUser.phone,
-                address: updateUser.address,
-                avatar: updateUser.avatar
-            }
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            if (error instanceof UnauthorizedException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
+      const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
+      if (user.codeExpired) {
+        const lastSentAt = user.codeExpired.getTime() - codeExpiredMs;
+        const elapsedMs = now - lastSentAt;
+
+        if (elapsedMs < requestLimitMs) {
+          const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
+          throw new BadRequestException(
+            `Vui lòng chờ ${remainSeconds} giây để gửi lại mã`,
+          );
         }
+      }
+      // gửi mã mới
+      const sentAt = Date.now();
+      const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+      const codeExpired = dayjs()
+        .utc()
+        .add(Number(process.env.CODE_EXPIRED), 'minute')
+        .toDate();
+      const updateUser = await this.prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          codeId: codeID,
+          codeExpired: codeExpired,
+        },
+      });
+      //send email to verify account
+      await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
+      return {
+        id: updateUser.id,
+        resendTime: new Date(sentAt + requestLimitMs).toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi gửi lại mã OTP',
+      );
     }
+  }
 
-    async handleResendOtp(resendOtpDTO: ResendOtpDto) {
-        try {
-            const now = Date.now();
-            const requestLimitMs = 2 * 60 * 1000;
+  async handleSendForgotPasswordOtp(
+    sendForgotPasswordOTPDto: SendForgotPasswordOTPDto,
+  ) {
+    try {
+      const { email } = sendForgotPasswordOTPDto;
+      const now = Date.now();
+      const requestLimitMs = 2 * 60 * 1000;
 
-            const user = await this.prisma.user.findFirst({
-                where: {
-                    verifyToken: resendOtpDTO.verifyToken
-                }
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
-            //check verify token expired
-            const isVerifyTokenExpired = dayjs(user.verifyTokenExpired).isBefore(dayjs());
-            if (!user.verifyTokenExpired || isVerifyTokenExpired) {
-                throw new UnauthorizedException('Verify token đã hết hạn, vui lòng đăng nhập lại để xác thực tài khoản')
-            }
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: email,
+        },
+      });
+      if (!user) {
+        throw new NotFoundException('Không tìm thấy người dùng');
+      }
+      if (!user.password) {
+        throw new BadRequestException(
+          'Email này đã được đăng ký bằng các phương thức khác. Vui lòng chọn đúng phương thức đăng nhập',
+        );
+      }
 
+      //rate limit
+      const existingReset = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email,
+        },
+      });
+      const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
+      if (existingReset?.codeExpired) {
+        const lastSentAt = existingReset.codeExpired.getTime() - codeExpiredMs;
+        const elapsedMs = now - lastSentAt;
 
-            const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
-            if (user.codeExpired) {
-                const lastSentAt = user.codeExpired.getTime() - codeExpiredMs;
-                const elapsedMs = now - lastSentAt;
-
-                if (elapsedMs < requestLimitMs) {
-                    const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
-                    throw new BadRequestException(`Vui lòng chờ ${remainSeconds} giây để gửi lại mã`);
-                }
-            }
-            // gửi mã mới
-            const sentAt = Date.now();
-            const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
-            const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
-            const updateUser = await this.prisma.user.update({
-                where: {
-                    id: user.id
-                },
-                data: {
-                    codeId: codeID,
-                    codeExpired: codeExpired
-                }
-            })
-            //send email to verify account
-            await this.mailService.sendVerifyEmail(user.email, user.name, codeID);
-            return {
-                id: updateUser.id,
-                resendTime: new Date(sentAt + requestLimitMs).toISOString(),
-            }
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            if (error instanceof UnauthorizedException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi gửi lại mã OTP');
+        if (elapsedMs < requestLimitMs) {
+          const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
+          throw new BadRequestException(
+            `Vui lòng chờ ${remainSeconds} giây để gửi lại mã`,
+          );
         }
+      }
+      const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
+      const codeExpired = dayjs()
+        .utc()
+        .add(Number(process.env.CODE_EXPIRED), 'minute')
+        .toDate();
+      const updateReset = await this.prisma.password_Resets.upsert({
+        where: {
+          email: email,
+        },
+        update: {
+          codeId: codeID,
+          codeExpired: codeExpired,
+          is_verified: false,
+          createdAt: new Date(),
+        },
+        create: {
+          email: email,
+          codeId: codeID,
+          codeExpired: codeExpired,
+        },
+      });
+      //send email
+      await this.mailService.sendForgotPasswordOTPEmail(
+        email,
+        user.name,
+        codeID,
+      );
+      return {
+        email: updateReset.email,
+        resendTime: new Date(Date.now() + requestLimitMs).toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi gửi mã OTP');
     }
+  }
 
-    async handleSendForgotPasswordOtp(sendForgotPasswordOTPDto: SendForgotPasswordOTPDto) {
-        try {
-            const { email } = sendForgotPasswordOTPDto;
-            const now = Date.now();
-            const requestLimitMs = 2 * 60 * 1000;
+  async handleVerifyResetOtp(
+    verifyResetPasswordOtpDTO: VerifyResetPasswordOtpDto,
+  ) {
+    try {
+      const { email, codeId } = verifyResetPasswordOtpDTO;
+      const resetSession = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email,
+        },
+      });
+      if (!resetSession) {
+        throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu');
+      }
 
-            const user = await this.prisma.user.findFirst({
-                where: {
-                    email: email
-                }
-            })
-            if (!user) {
-                throw new NotFoundException('Không tìm thấy người dùng')
-            }
-            if (!user.password) {
-                throw new BadRequestException('Email này đã được đăng ký bằng các phương thức khác. Vui lòng chọn đúng phương thức đăng nhập')
-            }
+      if (resetSession.is_verified) {
+        throw new BadRequestException(
+          'Phiên đặt lại mật khẩu đã được xác thực',
+        );
+      }
 
-            //rate limit
-            const existingReset = await this.prisma.password_Resets.findFirst({
-                where: {
-                    email: email
-                }
-            })
-            const codeExpiredMs = Number(process.env.CODE_EXPIRED) * 60 * 1000;
-            if (existingReset?.codeExpired) {
-                const lastSentAt = existingReset.codeExpired.getTime() - codeExpiredMs;
-                const elapsedMs = now - lastSentAt;
+      if (resetSession.codeId !== codeId) {
+        throw new BadRequestException('Mã xác thực không chính xác');
+      }
+      //check code id expired
+      const isCodeExpired = dayjs(resetSession.codeExpired).isBefore(dayjs());
+      if (!resetSession.codeExpired || isCodeExpired) {
+        throw new BadRequestException('Mã xác thực đã hết hạn');
+      }
+      const updateSession = await this.prisma.password_Resets.update({
+        where: {
+          email: email,
+        },
+        data: {
+          is_verified: true,
+          updatedAt: new Date(),
+        },
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
+    }
+  }
 
-                if (elapsedMs < requestLimitMs) {
-                    const remainSeconds = Math.ceil((requestLimitMs - elapsedMs) / 1000);
-                    throw new BadRequestException(`Vui lòng chờ ${remainSeconds} giây để gửi lại mã`);
-                }
-            }
-            const codeID = customAlphabet(String(process.env.CODE_ID_RULE), 6)();
-            const codeExpired = dayjs().utc().add(Number(process.env.CODE_EXPIRED), 'minute').toDate();
-            const updateReset = await this.prisma.password_Resets.upsert({
-                where: {
-                    email: email
-                },
-                update: {
-                    codeId: codeID,
-                    codeExpired: codeExpired,
-                    is_verified: false,
-                    createdAt: new Date()
-                },
-                create: {
-                    email: email,
-                    codeId: codeID,
-                    codeExpired: codeExpired
-                }
-            })
-            //send email
-            await this.mailService.sendForgotPasswordOTPEmail(email, user.name, codeID);
-            return {
-                email: updateReset.email,
-                resendTime: new Date(Date.now() + requestLimitMs).toISOString()
-            }
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi gửi mã OTP');
+  async handleResetPassword(resetPasswordDTO: ResetPasswordDto) {
+    try {
+      const { email, password } = resetPasswordDTO;
+      const resetSession = await this.prisma.password_Resets.findFirst({
+        where: {
+          email: email,
+          is_verified: true,
+        },
+      });
+      if (!resetSession) {
+        throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu');
+      }
+
+      if (!resetSession.is_verified) {
+        throw new BadRequestException(
+          'Phiên đặt lại mật khẩu chưa được xác thực',
+        );
+      }
+
+      if (
+        resetSession.updatedAt &&
+        dayjs().isAfter(
+          dayjs(resetSession.updatedAt).add(
+            Number(process.env.RESET_PASSWORD_SESSION_EXPIRED),
+            'minute',
+          ),
+        )
+      ) {
+        throw new BadRequestException(
+          'Phiên đặt lại mật khẩu đã hết hạn. Vui lòng thực hiện lại từ đầu',
+        );
+      }
+      //check password same
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: email,
+        },
+      });
+      if (user) {
+        const isValidPassword = await comparePasswordHelper(
+          password,
+          user?.password ?? '',
+        );
+        if (isValidPassword) {
+          throw new BadRequestException(
+            'Mật khẩu mới không được trùng với mật khẩu cũ',
+          );
         }
+      }
+      const hashPassword = await hashPasswordHelper(password);
+      await this.prisma.user.update({
+        where: {
+          email: email,
+        },
+        data: {
+          password: hashPassword,
+        },
+      });
+      await this.prisma.password_Resets.delete({
+        where: {
+          email: email,
+        },
+      });
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Có lỗi xảy ra khi đặt lại mật khẩu',
+      );
     }
-
-    async handleVerifyResetOtp(verifyResetPasswordOtpDTO: VerifyResetPasswordOtpDto) {
-        try {
-            const { email, codeId } = verifyResetPasswordOtpDTO;
-            const resetSession = await this.prisma.password_Resets.findFirst({
-                where: {
-                    email: email
-                }
-            })
-            if (!resetSession) {
-                throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu')
-            }
-
-            if (resetSession.is_verified) {
-                throw new BadRequestException('Phiên đặt lại mật khẩu đã được xác thực')
-            }
-
-            if (resetSession.codeId !== codeId) {
-                throw new BadRequestException('Mã xác thực không chính xác')
-            }
-            //check code id expired
-            const isCodeExpired = dayjs(resetSession.codeExpired).isBefore(dayjs());
-            if (!resetSession.codeExpired || isCodeExpired) {
-                throw new BadRequestException('Mã xác thực đã hết hạn')
-            }
-            const updateSession = await this.prisma.password_Resets.update({
-                where: {
-                    email: email
-                },
-                data: {
-                    is_verified: true,
-                    updatedAt: new Date()
-                }
-            })
-            return true;
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi xác thực');
-        }
-    }
-
-    async handleResetPassword(resetPasswordDTO: ResetPasswordDto) {
-        try {
-            const { email, password } = resetPasswordDTO;
-            const resetSession = await this.prisma.password_Resets.findFirst({
-                where: {
-                    email: email,
-                    is_verified: true
-                }
-            })
-            if (!resetSession) {
-                throw new NotFoundException('Không tìm thấy phiên đặt lại mật khẩu')
-            }
-
-            if (!resetSession.is_verified) {
-                throw new BadRequestException('Phiên đặt lại mật khẩu chưa được xác thực')
-            }
-
-            if (resetSession.updatedAt && dayjs().isAfter(dayjs(resetSession.updatedAt).add(Number(process.env.RESET_PASSWORD_SESSION_EXPIRED), 'minute'))) {
-                throw new BadRequestException('Phiên đặt lại mật khẩu đã hết hạn. Vui lòng thực hiện lại từ đầu')
-            }
-            //check password same
-            const user = await this.prisma.user.findFirst({
-                where: {
-                    email: email
-                }
-            })
-            if (user) {
-                const isValidPassword = await comparePasswordHelper(password, user?.password ?? '')
-                if (isValidPassword) {
-                    throw new BadRequestException('Mật khẩu mới không được trùng với mật khẩu cũ')
-                }
-            }
-            const hashPassword = await hashPasswordHelper(password);
-            await this.prisma.user.update({
-                where: {
-                    email: email
-                },
-                data: {
-                    password: hashPassword
-                }
-            })
-            await this.prisma.password_Resets.delete({
-                where: {
-                    email: email
-                }
-            })
-            return true;
-        } catch (error) {
-            if (error instanceof NotFoundException) {
-                throw error;
-            }
-            if (error instanceof BadRequestException) {
-                throw error;
-            }
-            throw new InternalServerErrorException('Có lỗi xảy ra khi đặt lại mật khẩu');
-        }
-    }
+  }
 }

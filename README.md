@@ -57,18 +57,27 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Deployment
+## GitHub Actions CI
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+[Backend CI](.github/workflows/ci.yml) chạy khi mở hoặc cập nhật PR vào `main`, push lên `main` và khi chọn **Run workflow** trong tab **Actions**. Runner dùng Node.js 24, cài theo lockfile, kiểm tra Prisma schema, generate Prisma Client, build NestJS và chạy các unit test Jest hiện có.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+ESLint hiện ghi cảnh báo vì repo đang có lỗi lint. Sau khi xử lý các lỗi đó, bỏ `continue-on-error` và bước **Report existing lint issues** để yêu cầu lint pass. Jest chấp nhận khi chưa có unit test. Kiểm thử e2e trong `test/` cần môi trường tích hợp riêng vì khởi động toàn bộ `AppModule`.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+## Deploy trên Render hoặc Railway
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Kết nối repo backend với nhánh `main`. Tạo PostgreSQL và Redis, rồi cấu hình biến môi trường của service, gồm `DATABASE_URL`, `REDIS_HOST`, `REDIS_PORT` và các biến JWT, lưu trữ, mail, YouTube, thanh toán cần cho ứng dụng.
+
+| Thiết lập | Render | Railway |
+| --- | --- | --- |
+| Chờ GitHub Actions | Auto-Deploy → After CI Checks Pass | Wait for CI |
+| Node.js | `NODE_VERSION=24.20.0` | `RAILPACK_NODE_VERSION=24.20.0` |
+| Cài dependencies | Đã nằm trong build command | Đặt `RAILPACK_INSTALL_CMD=npm ci --include=dev` và `RAILPACK_PRUNE_DEPS=false` |
+| Build command | `npm ci --include=dev && npm exec -- prisma generate --generator client && npm run build` | `npm exec -- prisma generate --generator client && npm run build` |
+| Start command | `npm run start:prod` | `npm run start:prod` |
+
+Railway cần giữ dev dependencies vì repo hiện khai báo Prisma Client và CLI trong nhóm đó. [Thiết lập Render](https://render.com/docs/deploys) · [Railway Wait for CI](https://docs.railway.com/deployments/github-autodeploys) · [Tùy chọn Railpack cho Node.js](https://railpack.com/languages/node)
+
+Sau khi kiểm tra migration trên database thử nghiệm, dùng `npm exec -- prisma migrate deploy` làm pre-deploy command. Với gói Render thiếu pre-deploy command, chạy migration riêng trước khi deploy phiên bản mới. GitHub Actions CI kiểm tra schema và build mà không cần thông tin kết nối database production. [Render pre-deploy](https://render.com/docs/deploys#pre-deploy-command) · [Railway pre-deploy](https://docs.railway.com/deployments/pre-deploy-command)
 
 ## Resources
 

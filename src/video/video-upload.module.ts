@@ -8,25 +8,25 @@ import { YoutubeModule } from '@/youtube/youtube.module';
 import { PrismaModule } from '@/prisma/prisma.module';
 @Module({
   imports: [
-          ConfigModule,
-          YoutubeModule,
-          PrismaModule,
-          BullModule.forRootAsync({
-              imports: [ConfigModule],
-              inject: [ConfigService],
-              useFactory: (configService: ConfigService) => ({
-                  connection: {
-                      host: configService.get<string>('REDIS_HOST'),
-                      port: Number(configService.get<string>('REDIS_PORT')),
-                  },
-              }),
-          }),
-          BullModule.registerQueue({
-              name: 'video-upload',
-          }),
-      ],
-      controllers: [VideoUploadController],
-      providers: [VideoUploadProcessor, VideoUploadService],
-      exports: [VideoUploadService],
+    ConfigModule,
+    YoutubeModule,
+    PrismaModule,
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST'),
+          port: Number(configService.get<string>('REDIS_PORT')),
+        },
+      }),
+    }),
+    BullModule.registerQueue({
+      name: 'video-upload',
+    }),
+  ],
+  controllers: [VideoUploadController],
+  providers: [VideoUploadProcessor, VideoUploadService],
+  exports: [VideoUploadService],
 })
 export class VideoUploadModule {}

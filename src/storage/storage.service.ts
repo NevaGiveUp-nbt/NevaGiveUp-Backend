@@ -18,8 +18,11 @@ export class StorageService {
 
   constructor(private readonly configService: ConfigService) {
     const accountId = this.configService.getOrThrow<string>('R2_ACCOUNT_ID');
-    const accessKeyId = this.configService.getOrThrow<string>('R2_ACCESS_KEY_ID');
-    const secretAccessKey = this.configService.getOrThrow<string>('R2_SECRET_ACCESS_KEY');
+    const accessKeyId =
+      this.configService.getOrThrow<string>('R2_ACCESS_KEY_ID');
+    const secretAccessKey = this.configService.getOrThrow<string>(
+      'R2_SECRET_ACCESS_KEY',
+    );
 
     this.bucketName = this.configService.getOrThrow<string>('R2_BUCKET_NAME');
     this.endpoint = this.configService.getOrThrow<string>('R2_ENDPOINT');
@@ -33,7 +36,11 @@ export class StorageService {
     });
   }
 
-  async uploadFile(key: string,file: Buffer, contentType: string): Promise<void> {
+  async uploadFile(
+    key: string,
+    file: Buffer,
+    contentType: string,
+  ): Promise<void> {
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
@@ -61,7 +68,7 @@ export class StorageService {
     }
   }
 
-  async getSignedUrl(key: string,expiresIn = 3600): Promise<string> {
+  async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Req, Headers } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Req,
+  Headers,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -12,11 +22,14 @@ import { SkipTransform } from '@/core/transform.interceptor';
 
 @Controller('payment')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) { }
+  constructor(private readonly paymentService: PaymentService) {}
 
   @Post()
-  @ResponseMessage(" Tạo đơn hàng thành công")
-  async create(@CurrentUser() user: AuthUser, @Body() createPaymentDto: CreatePaymentDto) {
+  @ResponseMessage(' Tạo đơn hàng thành công')
+  async create(
+    @CurrentUser() user: AuthUser,
+    @Body() createPaymentDto: CreatePaymentDto,
+  ) {
     return this.paymentService.createPayment(user.id, createPaymentDto);
   }
 
@@ -29,7 +42,12 @@ export class PaymentController {
     @Headers('x-sepay-signature') signature?: string,
     @Headers('x-sepay-timestamp') timestamp?: string,
   ) {
-    await this.paymentService.handleSePayWebhook(body,req.rawBody,signature,timestamp);
+    await this.paymentService.handleSePayWebhook(
+      body,
+      req.rawBody,
+      signature,
+      timestamp,
+    );
 
     return {
       success: true,
@@ -42,8 +60,11 @@ export class PaymentController {
   }
 
   @Get(':orderNumber')
-  @ResponseMessage("Lấy thông tin thanh toán thành công")
-  findOne(@CurrentUser() user: AuthUser, @Param('orderNumber') orderNumber: string) {
+  @ResponseMessage('Lấy thông tin thanh toán thành công')
+  findOne(
+    @CurrentUser() user: AuthUser,
+    @Param('orderNumber') orderNumber: string,
+  ) {
     return this.paymentService.findOne(user.id, orderNumber);
   }
 
