@@ -6,7 +6,7 @@ import {
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { PrismaService } from '@/prisma/prisma.service';
-import { CourseStatus, Prisma } from '@prisma/client';
+import { CourseStatus, CourseType, Prisma } from '@prisma/client';
 import { generateOrderNumber } from '@/helpers/Payment.util';
 
 @Injectable()
@@ -41,25 +41,24 @@ export class OrdersService {
       throw new ConflictException('Bạn đã đăng ký khóa học này');
     }
 
-    if (
-      course.discount === null ||
-      new Prisma.Decimal(course.discount).lessThanOrEqualTo(0)
-    ) {
-      throw new ConflictException('Giá giảm của khóa học không hợp lệ');
-    }
-
-    const originalPrice = new Prisma.Decimal(course.price);
-    const finalPrice = new Prisma.Decimal(course.discount);
-    const discountAmount = originalPrice.minus(finalPrice);
-
-    if (finalPrice.lessThanOrEqualTo(0)) {
+    if (course.courseType === CourseType.FREE) {
       throw new BadRequestException(
         'Khóa học này miễn phí không thể tạo đơn hàng',
       );
     }
-    if (finalPrice.greaterThan(originalPrice)) {
-      throw new ConflictException('Giá giảm của khóa học không hợp lệ');
+
+    const originalPrice = new Prisma.Decimal(course.price);
+    const salePrice = new Prisma.Decimal(course.discount);
+
+    if (originalPrice.lessThanOrEqualTo(0)) {
+      throw new ConflictException('Giá gốc của khóa học không hợp lệ');
     }
+    if (salePrice.lessThan(0) || salePrice.greaterThan(originalPrice)) {
+      throw new ConflictException('Giá bán của khóa học không hợp lệ');
+    }
+
+    const finalPrice = salePrice.isZero() ? originalPrice : salePrice;
+    const discountAmount = originalPrice.minus(finalPrice);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.create({

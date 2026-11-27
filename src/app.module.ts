@@ -36,6 +36,7 @@ import { CleanupModule } from './cleanup/cleanup.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { LearningModule } from './modules/learning/learning.module';
+import { EnrollmentModule } from './modules/enrollment/enrollment.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, expandVariables: true }),
@@ -67,6 +68,7 @@ import { LearningModule } from './modules/learning/learning.module';
     CategoriesModule,
     PaymentModule,
     LearningModule,
+    EnrollmentModule,
   ],
   controllers: [AppController],
   providers: [

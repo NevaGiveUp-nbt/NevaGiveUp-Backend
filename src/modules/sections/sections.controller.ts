@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   Query,
+  Req,
 } from '@nestjs/common';
 import { SectionsService } from './sections.service';
 import { CreateSectionDto } from './dto/create-section.dto';
@@ -16,10 +17,16 @@ import { RequirePermissions } from '@/decorator/permissions.decorator';
 import { PERMISSIONS } from '@/authorization/constants/permission';
 import { CurrentUser } from '@/decorator/current-user.decorator';
 import type { AuthUser } from '@/auth/interfaces/auth-user.interface';
+import { ReorderSectionsDto } from './dto/reorder-sections.dto';
 
 @Controller('sections')
 export class SectionsController {
-  constructor(private readonly sectionsService: SectionsService) {}
+  constructor(private readonly sectionsService: SectionsService) { }
+
+  @Patch('reorder')
+  reorder(@CurrentUser() user: AuthUser, @Body() dto: ReorderSectionsDto) {
+    return this.sectionsService.reorder(user.id, dto);
+  }
 
   @Post()
   @RequirePermissions(PERMISSIONS.SECTION_CREATE)

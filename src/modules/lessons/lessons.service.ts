@@ -19,6 +19,7 @@ import { extractPublicIdsFromHtml } from '@/media/media.utils';
 import { CourseStatus } from '@prisma/client';
 import { stripHtmlTags } from '@/helpers/stripHtml.util';
 import { AuthorizationService } from '@/authorization/authorization.service';
+import { ReorderLessonsDto } from './dto/reorder-lessons.dto';
 
 @Injectable()
 export class LessonsService {
@@ -29,7 +30,7 @@ export class LessonsService {
     private readonly videoUploadService: VideoUploadService,
     private readonly authorizationService: AuthorizationService,
     private readonly cleanupService: CleanupService,
-  ) {}
+  ) { }
 
   async uploadResources(
     userId: string,
@@ -263,11 +264,19 @@ export class LessonsService {
         );
       }
 
+      let order = createLessonDto.order;
+      if (order === undefined) {
+        order = await this.getNextOrder(createLessonDto.sectionId)
+      }
+      else {
+        await this.assertOrderAvailable(createLessonDto.sectionId, order)
+      }
+
       const lesson = await this.prisma.lesson.create({
         data: {
           title: createLessonDto.title,
           content: createLessonDto.content,
-          order: createLessonDto.order,
+          order,
           isPreview: createLessonDto.isPreview,
           sectionId: createLessonDto.sectionId,
           videoId: null,
@@ -294,15 +303,19 @@ export class LessonsService {
               id: lessonId,
             },
           })
-          .catch(() => {});
+          .catch(() => { });
       }
 
       //xoá file video đã lưu trong temp
       if (filePath) {
-        await unlink(filePath).catch(() => {});
+        await unlink(filePath).catch(() => { });
       }
 
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       throw new BadRequestException('Lỗi khi tạo bài giảng');
@@ -375,6 +388,9 @@ export class LessonsService {
         );
       }
 
+      const movingSection = updateLessonDto.sectionId !== undefined && updateLessonDto.sectionId !== lesson.sectionId
+      const newOrder = movingSection ? await this.getNextOrder(updateLessonDto.sectionId!) : undefined
+
       const updatedLesson = await this.prisma.lesson.update({
         where: {
           id: id,
@@ -382,9 +398,9 @@ export class LessonsService {
         data: {
           title: updateLessonDto.title,
           content: updateLessonDto.content,
-          order: updateLessonDto.order,
           isPreview: updateLessonDto.isPreview,
           sectionId: updateLessonDto.sectionId,
+          ...(newOrder !== undefined && { order: newOrder }),
           ...(videoFile && {
             oldVideoId: lesson.videoId, // lưu videoId cũ để processor xóa sau khi video mới process xong
             videoId: null,
@@ -432,7 +448,7 @@ export class LessonsService {
       return updatedLesson;
     } catch (error) {
       if (filePath) {
-        await unlink(filePath).catch(() => {});
+        await unlink(filePath).catch(() => { });
       }
       if (
         error instanceof BadRequestException ||
@@ -443,6 +459,90 @@ export class LessonsService {
       }
       throw new BadRequestException('Lỗi khi cập nhật bài giảng');
     }
+  }
+
+  // ---- ORDER -----
+  async reorder(userId: string, dto: ReorderLessonsDto) {
+    const section = await this.prisma.section.findUnique({
+      where: { id: dto.sectionId },
+      include: {
+        course: true,
+        lessons: {
+          select: {
+            id: true
+          }
+        }
+      }
+    })
+
+    if (!section) {
+      throw new BadRequestException("Không tìm thấy chương");
+    }
+
+    const isAdmin = await this.authorizationService.hasRole(userId, 'ADMIN');
+    if (!isAdmin && section.course.instructorId !== userId) {
+      throw new ForbiddenException('Bạn không có quyền sắp xếp bài giảng này');
+    }
+
+    if (!([CourseStatus.DRAFT, CourseStatus.REJECTED, CourseStatus.UNPUBLISHED] as CourseStatus[]).includes(section.course.status)) {
+      throw new BadRequestException(
+        'Không thể chỉnh sửa nội dung khi khóa học đang xuất bản hoặc chờ duyệt',
+      );
+    }
+
+    //danh sách gửi lên phải đúng bằng toàn bộ bài giảng của chương
+    const currentIds = new Set(section.lessons.map((l) => l.id));
+    const valid =
+      dto.lessonIds.length === currentIds.size &&
+      dto.lessonIds.every((id) => currentIds.has(id));
+    if (!valid) {
+      throw new BadRequestException('Danh sách bài giảng không khớp với chương');
+    }
+
+    await this.prisma.$transaction(
+      dto.lessonIds.map((id, index) =>
+        this.prisma.lesson.update({
+          where: { id },
+          data: { order: index + 1 },
+        }),
+      ),
+    );
+    return { message: 'Đã cập nhật thứ tự bài giảng' };
+  }
+
+  /**
+ * Kiểm tra order đã có bài giảng nào dùng trong chương chưa.
+ * excludeLessonId: bỏ qua chính bài đang sửa (dùng cho update).
+ */
+  private async assertOrderAvailable(sectionId: number, order: number, excludeLessonId?: number) {
+    const existed = await this.prisma.lesson.findFirst({
+      where: {
+        sectionId,
+        order,
+        ...(excludeLessonId && { in: { not: excludeLessonId } })
+      },
+      select: {
+        id: true, title: true
+      }
+    })
+    if (existed) {
+      throw new ConflictException(
+        `Thứ tự ${order} đã được dùng bởi bài "${existed.title}" trong chương này`,
+      );
+    }
+  }
+
+  private async getNextOrder(sectionId: number): Promise<number> {
+    const last = await this.prisma.lesson.findFirst({
+      where: {
+        sectionId
+      },
+      orderBy: { order: 'desc' },
+      select: {
+        order: true
+      }
+    })
+    return (last?.order ?? 0) + 1;
   }
 
   async remove(id: number, instructorId: string) {
