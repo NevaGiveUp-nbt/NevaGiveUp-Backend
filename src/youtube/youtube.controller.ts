@@ -12,21 +12,23 @@ import {
 } from '@nestjs/common';
 import { YoutubeService } from './youtube.service';
 import type { Response } from 'express';
+import { Public } from '@/decorator/public.decorator';
 
 @Controller('youtube')
 export class YoutubeController {
-  constructor(private readonly youtubeService: YoutubeService) {}
+  constructor(private readonly youtubeService: YoutubeService) { }
 
   @Post('get-youtube-info')
   async getYoutubeInfo(@Body('videoUrl') videoUrl: string) {
     return this.youtubeService.getVideoDetails(videoUrl);
   }
-
+  @Public()
   @Get('oauth/callback')
   async oauthCallback(@Query('code') code: string) {
     return this.youtubeService.handleOAuthCallback(code);
   }
 
+  @Public()
   @Get('oauth')
   @Redirect()
   connectYoutube(@Res() res: Response) {

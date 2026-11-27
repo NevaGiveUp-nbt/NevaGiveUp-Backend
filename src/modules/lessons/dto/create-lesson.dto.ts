@@ -11,7 +11,7 @@ import {
   ValidateIf,
   IsNotEmpty,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsMaxImages } from '@/decorator/max-images.decorator';
 
 export class CreateLessonDto {
@@ -25,9 +25,11 @@ export class CreateLessonDto {
   @IsMaxImages()
   content?: string;
 
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
-  @Min(0, { message: 'Thứ tự của bài học không được để trống' })
-  order!: number;
+  @Min(1)
+  order?: number;
 
   @Transform(({ obj, value }) => {
     if (obj.isPreview === undefined) return value;

@@ -11,6 +11,7 @@ import {
   UploadedFiles,
   BadRequestException,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
 import { LessonsService } from './lessons.service';
 import { CreateLessonDto } from './dto/create-lesson.dto';
@@ -24,9 +25,15 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import 'multer';
 import { diskStorage } from 'multer';
 import { uuidv4 } from 'uuidv7';
+import { ReorderLessonsDto } from './dto/reorder-lessons.dto';
 @Controller('lessons')
 export class LessonsController {
-  constructor(private readonly lessonsService: LessonsService) {}
+  constructor(private readonly lessonsService: LessonsService) { }
+
+  @Patch('reorder')
+  reorder(@CurrentUser() user: AuthUser, @Body() dto: ReorderLessonsDto) {
+    return this.lessonsService.reorder(user.id, dto);
+  }
 
   @Post(':lessonId/resources')
   @UseInterceptors(
